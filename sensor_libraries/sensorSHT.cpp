@@ -4,7 +4,7 @@
 
 // SHT21, SHT31はI2Cアドレスが異なるので、設定を作ればSHT21を１個、SHT31を2個の合計3個を一緒に使うこともできる。
 
-#if defined(SHT3X_A1) || defined(SHT3X_A2)  // オリジナルのままだと接続不良になった時に止まってしまう。止まらないように修正したライブラリを使っている。
+#if defined(SHT3X_A1) || defined(SHT3X_A2)  // オリジナルは接続不良になった時に止まってしまう。止まらないように修正したライブラリを使っている。
 #include <AE_SHT31.h>     // http://akizukidenshi.com/download/AE_SHT31.zip
 #endif
 
