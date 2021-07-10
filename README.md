@@ -19,6 +19,7 @@ Copyright (C) 2021 by citriena
  * スリープ時の消費電流を下げるためにレギュレータを交換しています。
 * RTC: SEIKO EPRON RX8900（秋月電子通商 AE-RX8900）
 * EEPROM: MICROCHIP 24FC1025（最大４個（512Kbyte）接続対応）
+ * 4個使用時の保存可能データ数は約25万（温度）、約17万（温湿度）
 * microSDカードスロット（秋月電子通商 AE-MICRO-SD-DIP）
 * LCD: Strawberry Linux I2C低電圧キャラクタ液晶モジュール（１６ｘ２行）
 * センサ: サーミスタ（SEMITEC 103AT-11等）、Sensirion SHT21, SHT31等
@@ -71,11 +72,13 @@ A07:
 #### sensorSHT.h
  * Sensirion SHT-21/25, HTU21, SHT-31/35, SHT-85対応
  * SHT-31/35は異なるI2Cアドレス設定にすることによりセンサー2個同時使用可能
+  * deslemLoggerConfig.h内のDUAL_SENSORSマクロ定義を有効化
  * センサーからデータ取得するライブラリが別途必要。sensorSHT.hを参照
 
 #### sensorNTC.h
  * サーミスタ用
  * センサー2個同時使用可能
+  * deslemLoggerConfig.h内のDUAL_SENSORSマクロ定義を有効化
  * センサーからデータ取得するライブラリ（SHthermistor）が別途必要。sensorNTC.cppを参照
  * サーミスタの特性はsensorNTC.cpp内で設定
 
@@ -113,6 +116,14 @@ LCD の時計表示更新と連動しているので、これを1分よりも長
 * デフォルト値: MIN_INTERVAL
 * 内容
  * TIMER_INTERVAL, MEASURE_INTERVAL, LOG_INTERVALの単位（秒、分、時）
+
+### DUAL_SENSORS
+* 設定可能値：定義／無定義
+* デフォルト値：無定義
+* 内容
+ * センサを2本使う場合に定義
+ * sensorNTCを使う場合と、sensorSHTでSHT31/35を使う場合に有効
+ * 当然ですがハードウェアも2本使用に対応させる必要があります。
 
 ### SEKISAN
 * 設定可能値：定義／無定義
@@ -169,6 +180,21 @@ EEPROMメモリを一周したらヘッダ単位で前のデータが順に読�
 * 内容
  * 消費電流節約のために夜間LCDを消す場合に設定。LCD_ON_TIME はLCDを表示停止する時間を指定
  * この機能を使用しない場合は0を設定
+
+## 使用ライブラリの設定（コンストラクタ）
+
+### EEPROM_24xx1025
+* データを保存するEEPROMの24xx1025を扱うライブラリです。
+* 場所：deslemLogger.ino
+* 内容：使用する24xx1025の個数、I2Cアドレスを設定します。詳細はEEPROM_24xx1025ライブラリの説明を参照してください。
+
+### SHthermistor
+* サーミスタを使って温度測定するライブラリです。
+* 場所：sensorNTC.cpp
+* 内容：サーミスタの特性、分圧抵抗値、使用するArduinoのピン等を設定します。詳細はSHthermistorライブラリの説明を参照してください。
+
+### 
+
 
 ## EEPROM内のデータ構造
 
@@ -277,6 +303,9 @@ data_t restoreEmData(emData_t tEmData);
 | 基板 | - | 200 | 1 | 200 | ELECROW | 自作設計を外注 |
 | シリアル-USBアダプタ | FTDI USBシリアル変換アダプター Rev.2 | 1080 | 1 | 1080 | スイッチサイエンス | スケッチ転送に必要<br>3.3V給電必須  ノーブランドなら400円程度で入手可 |
 |  |
+## RS-274Xデータについて
+Fritsingで作成したプリント基板データをRS-274X形式で出力し、製造委託先（Elecrow）に合わせてファイル名を変更したものです。他の会社では使えないかもしれません。
+画像はGround Fillされていませんが、出力データはGround Fillされています。
 
 ## Releases
 
