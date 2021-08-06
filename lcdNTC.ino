@@ -56,7 +56,7 @@ void lcdData(data_t tData, byte atNo) {
     lcd.print(tData.dt1a, DECIMAL_PLACE);
     lcd.print(F("C "));
   }
-#ifdef DOUBLE_SENSORS
+#ifdef DUAL_SENSORS
   lcd.setCursor(6, 1);
 //  lcd.print(F("B"));
   if (tData.dt2a == NULLDATA_MARK) {
