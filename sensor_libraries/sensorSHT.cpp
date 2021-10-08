@@ -22,42 +22,29 @@
 
 
 #ifdef SHT3X_A1
-AE_SHT31 SHT31A = AE_SHT31(0x45); // 秋月電子通商のAE-SHT31のデフォルト（4番ピンオープン）。GY-SHT31-DはAD端子をVddにつなぐ。
-#ifdef DUAL_SENSORS
-AE_SHT31 SHT31B = AE_SHT31(0x44); // 秋月電子通商のAE-SHT31では4番ピンをGNDに接続  GY-SHT31-Dのデフォルト
-#endif
+AE_SHT31 SHT3x_1 = AE_SHT31(0x44); // 秋月電子通商のAE-SHT31では4番ピンをGNDに接続  GY-SHT31-Dのデフォルト。SHT-85はこちらのみ
 #endif
 
 #ifdef SHT3X_A2
-AE_SHT31 SHT31A = AE_SHT31(0x44); // 秋月電子通商のAE-SHT31では4番ピンをGNDに接続  GY-SHT31-Dのデフォルト。SHT-85はこちらのみ
-#ifdef DUAL_SENSORS
-AE_SHT31 SHT31B = AE_SHT31(0x45); // 秋月電子通商のAE-SHT31のデフォルト（4番ピンオープン）。GY-SHT31-DはAD端子をVddにつなぐ。
+#ifdef SHT3X_A1
+AE_SHT31 SHT3x_2 = AE_SHT31(0x45); // 秋月電子通商のAE-SHT31のデフォルト（4番ピンオープン）。GY-SHT31-DはAD端子をVddにつなぐ。
+#else
+AE_SHT31 SHT3x_1 = AE_SHT31(0x45); // 秋月電子通商のAE-SHT31のデフォルト（4番ピンオープン）。GY-SHT31-DはAD端子をVddにつなぐ。
 #endif
 #endif
 
 
-#ifdef SHT3X_S1
-// Sensor with normal i2c address
-// Sensor 1 with address pin pulled to GND
+#ifdef SHT3X_S1 // Sensor with address pin pulled to GND
 SHTSensor sht1(SHTSensor::SHT3X);      // 秋月電子通商のAE-SHT31では4番ピンをGNDに接続  GY-SHT31-Dのデフォルト。SHT-85はこちらのみ
-#ifdef DUAL_SENSORS
-// Sensor with alternative i2c address
-// Sensor 2 with address pin pulled to Vdd
+#endif
+
+#ifdef SHT3X_S2 // Sensor with address pin pulled to Vdd
+#ifdef SHT3X_S1
 SHTSensor sht2(SHTSensor::SHT3X_ALT);  // 秋月電子通商のAE-SHT31のデフォルト（4番ピンオープン）。GY-SHT31-DはAD端子をVddにつなぐ。
-#endif
-#endif
-
-#ifdef SHT3X_S2
-// Sensor with normal i2c address
-// Sensor 1 with address pin pulled to GND
+#else
 SHTSensor sht1(SHTSensor::SHT3X_ALT);  // 秋月電子通商のAE-SHT31のデフォルト（4番ピンオープン）。GY-SHT31-DはAD端子をVddにつなぐ。
-#ifdef DUAL_SENSORS
-// Sensor with alternative i2c address
-// Sensor 2 with address pin pulled to Vdd
-SHTSensor sht2(SHTSensor::SHT3X);      // 秋月電子通商のAE-SHT31では4番ピンをGNDに接続  GY-SHT31-Dのデフォルト。SHT-85はこちらのみ
 #endif
 #endif
-
 
 
 #ifdef SHT2X_R
@@ -70,9 +57,6 @@ SHT21 sht;
 // I2C address is 0x40
 HTU21D myHumidity;
 #endif
-
-
-
 
 
 uint8_t _dataCount1a = 0;
@@ -93,14 +77,13 @@ void initSensor() {
 
 #if defined(SHT3X_A1) || defined(SHT3X_A2)
   // SHT31使用準備 set up SHT31 for measurement
-  SHT31A.SoftReset(); // SHT31をソフトリセット soft reset SHT31
-  SHT31A.Heater(0);   // 内蔵ヒーター 0:OFF 1:ON internal heater  0:OFF 1:ON
+  SHT3x_1.SoftReset(); // SHT31をソフトリセット soft reset SHT31
+  SHT3x_1.Heater(0);   // 内蔵ヒーター 0:OFF 1:ON internal heater  0:OFF 1:ON
 #ifdef DUAL_SENSORS
-  SHT31B.SoftReset();
-  SHT31B.Heater(0);
+  SHT3x_2.SoftReset();
+  SHT3x_2.Heater(0);
 #endif
 #endif
-
 
 #if defined(SHT3X_S1) || defined(SHT3X_S2)
   sht1.init();// initialize sensor
@@ -109,10 +92,8 @@ void initSensor() {
 #endif
 #endif
 
-
 #ifdef SHT2X_R
 #endif
-
 
 #ifdef HTU21
   myHumidity.begin();
@@ -126,16 +107,15 @@ data_t getData() {
   data_t tData;
 
 #if defined(SHT3X_A1) || defined(SHT3X_A2)
-  SHT31A.GetTempHum();
-  tData.dt1a = SHT31A.Temperature();
-  tData.dt1b = SHT31A.Humidity();
+  SHT3x_1.GetTempHum();
+  tData.dt1a = SHT3x_1.Temperature();
+  tData.dt1b = SHT3x_1.Humidity();
 #ifdef DUAL_SENSORS
-  SHT31B.GetTempHum();
-  tData.dt2a = SHT31B.Temperature();
-  tData.dt2b = SHT31B.Humidity();
+  SHT3x_2.GetTempHum();
+  tData.dt2a = SHT3x_2.Temperature();
+  tData.dt2b = SHT3x_2.Humidity();
 #endif
 #endif
-
 
 #if defined(SHT3X_S1) || defined(SHT3X_S2)
   if (sht1.readSample()) {
@@ -145,7 +125,6 @@ data_t getData() {
     tData.dt1a = NULLDATA_MARK;
     tData.dt1b = NULLDATA_MARK;
   }
-
 #ifdef DUAL_SENSORS
   if (sht2.readSample()) {
     tData.dt2a = sht2.getTemperature();
@@ -157,18 +136,15 @@ data_t getData() {
 #endif
 #endif
 
-
 #ifdef SHT2X_R
   tData.dt1a = sht.getTemperature();  // get temp from SHT
   tData.dt1b = sht.getHumidity(); // get temp from SHT
 #endif
 
-
 #ifdef HTU21
   tData.dt1a = myHumidity.readTemperature();
   tData.dt1b = myHumidity.readHumidity();
 #endif
-
 
   if (tData.dt1a != NULLDATA_MARK) {
     _sumData.dt1a += tData.dt1a;  // 平均用の処理も行う。
@@ -220,25 +196,25 @@ data_t avgData() {
   return avgData;
 }
 
-#ifdef ECO_DATA
+#ifdef LQ_DATA
 ////////////////////////////////////////////////
-// ECO_DATAが設定されている場合
+// LQ_DATAが設定されている場合
 // EEPROM使用量節約のために温度、湿度で2バイトで保存する。
-// ECO_DATAを設定しなければ温度、湿度を3バイトで保存する。
+// LQ_DATAを設定しなければ温度、湿度を3バイトで保存する。
 // 
 // バイト数が少ないので、以下の制限がある。
 // 温度：-9.9～52.7℃（0.1℃単位）
 // 湿度：1～100%（1%$単位）
 // 測定エラー時は-10℃、0%を返す。
 
-// ECO_DATAが設定されている場合の変換方法は以下の通り
+// LQ_DATAが設定されている場合の変換方法は以下の通り
 // 温度:tp, 湿度rhとする。
-// ct = (tp + 10) * 10
+// ct = (tp + 10.05) * 10
 // で-10.0~52.7℃を0~627の整数に変換
 // 湿度
-// ch = rh (0~100(%)
-// の整数値
-// tDt = ct * 101 * ch
+// ch = rh + 0.5
+// の整数値 (0~100(%)
+// tDt = ct * 101 + ch
 // とすると上記の温度と湿度は
 // 0 <= cDt <= 63,427 < 63,504（0-251の2バイト最大値） 
 // で表現できる。
@@ -249,36 +225,36 @@ emData_t setEmData(data_t tData) {   // センサデータをEEPROM記憶用に�
   unsigned int tDt;                  // tDtは0-63503しか使えない。
 
   if (tData.dt1a == NULLDATA_MARK) { // 複数データがある場合は個別に処理
-    tData.dt1a = -10;                 // エラー時は-10℃
-  } else if (tData.dt1a > 52.7) {     // emData変換最大値
+    tData.dt1a = -10;                // エラー時は-10℃
+  } else if (tData.dt1a > 52.7) {    // emData変換最大値
     tData.dt1a = 52.7;
   } else if (tData.dt1a < -9.9) {
     tData.dt1a = -9.9;
   }
   if (tData.dt1b == NULLDATA_MARK) { // 複数データがある場合は個別に処理
-    tData.dt1b = 0;                   // 湿度エラー時は0%
-  } else if (tData.dt1b > 100) {      // 0％の処理は良いであろう。
+    tData.dt1b = 0;                  // 湿度エラー時は0%
+  } else if (tData.dt1b > 100) {     // 0％の処理は良いであろう。
     tData.dt1b = 100;
   }
-  // 整数変換時に生じた誤差は切り捨てられるので、正しく整数変換＋四捨五入されるように補正するため10.05としている。
-  tDt = (unsigned int)((tData.dt1a  + 10.05) * 10) * 101 + (unsigned int)tData.dt1b;
+  // 整数変換時に生じた誤差は切り捨てられるので、正しく整数変換＋四捨五入されるように補正するため0.05, 0.5を加算としている。
+  tDt = (unsigned int)((tData.dt1a  + 10.05) * 10) * 101 + (unsigned int)(tData.dt1b + 0.5);
   tEmData.data1a = tDt / 252;        // tEmData.data1, data2は0-251まで
   tEmData.data1b = tDt % 252;
 #ifdef DUAL_SENSORS
   if (tData.dt2a == NULLDATA_MARK) { // 複数データがある場合は個別に処理
-    tData.dt2a = -10;                 // エラー時は-10℃
-  } else if (tData.dt2a > 52.7) {     // emData変換最大値
+    tData.dt2a = -10;                // エラー時は-10℃
+  } else if (tData.dt2a > 52.7) {    // emData変換最大値
     tData.dt2a = 52.7;
   } else if (tData.dt2a < -9.9) {
     tData.dt2a = -9.9;
   }
   if (tData.dt2b == NULLDATA_MARK) { // 複数データがある場合は個別に処理
-    tData.dt2b = 0;                   // 湿度エラー時は0%
-  } else if (tData.dt2b > 100) {      // 0％の処理は良いであろう。
+    tData.dt2b = 0;                  // 湿度エラー時は0%
+  } else if (tData.dt2b > 100) {     // 0％の処理は良いであろう。
     tData.dt2b = 100;
   }
-  // 整数変換時に生じた誤差は切り捨てられるので、正しく整数変換＋四捨五入されるように補正するため10.05としている。
-  tDt = (unsigned int)((tData.dt2a  + 10.05) * 10) * 101 + (unsigned int)tData.dt2b;
+  // 整数変換時に生じた誤差は切り捨てられるので、正しく整数変換＋四捨五入されるように補正するため0.05, 0.5を加算している。
+  tDt = (unsigned int)((tData.dt2a + 10.05) * 10) * 101 + (unsigned int)(tData.dt2b + 0.5);
   tEmData.data2a = tDt / 252;        // tEmData.data1, data2は0-251まで
   tEmData.data2b = tDt % 252;
 #endif
@@ -288,78 +264,91 @@ emData_t setEmData(data_t tData) {   // センサデータをEEPROM記憶用に�
 
 data_t restoreEmData(emData_t tEmData) { // EEPROM内の変換データを元に戻す。
   data_t tData;
-  unsigned int tDt;
+  unsigned int tDta;
+  unsigned int tDtb;
   
   if (tEmData.data1a == EM_NULLDATA_MARK) {
     tData = nullData;
   } else {
-    tDt = (unsigned int)tEmData.data1a * 252 + (unsigned int)tEmData.data1b;
-    tData.dt1a = (float)(tDt / 101) / 10 - 10.0;
+    tDta = (unsigned int)tEmData.data1a * 252 + (unsigned int)tEmData.data1b;
+    tDtb = tDta / 101;
+    tDta = tDta % 101;
+    tData.dt1a = (float)(tDtb) / 10 - 10.0;
     if (tData.dt1a == -10) tData.dt1a = NULLDATA_MARK;
 
-    tData.dt1b = tDt % 101;
+    tData.dt1b = tDta;
     if (tData.dt1b == 0) tData.dt1b = NULLDATA_MARK;
 #ifdef DUAL_SENSORS
-    tDt = (unsigned int)tEmData.data2a * 252 + (unsigned int)tEmData.data2b;
-    tData.dt2a = (float)(tDt / 101) / 10 - 10.0;
+    tDta = (unsigned int)tEmData.data2a * 252 + (unsigned int)tEmData.data2b;
+    tDtb = tDta / 101;
+    tDta = tDta % 101;
+    tData.dt2a = (float)(tDtb) / 10 - 10.0;
     if (tData.dt2a == -10) tData.dt2a = NULLDATA_MARK;
 
-    tData.dt1b = tDt % 101;
+    tData.dt1b = tDta;
     if (tData.dt2b == 0) tData.dt2b = NULLDATA_MARK;
 #endif
   }
   return tData;
 }
+#endif
 
-#else
+#ifdef HQ_DATA
 
 ////////////////////////////////////////////////
-// ECO_DATAが設定されて**いない**場合
-// 以下の温度、湿度を3バイトで保存する。
-// 温度：-40.0℃～125.0℃
-// 湿度：0.1%～100.0%
+// 以下の温度、湿度を3バイトで保存する。以下はエラーも含めたカウント
+// 温度：-40.0℃～117.0℃ （1572カウント） 3バイトに納めるために少し制限した．SPECは125℃まで
+// 湿度：0.0%～100.0%（1002カウント）
 // と仕様上のセンサの出力を大きな制限無く保存できる。
 ////////////////////////////////////////////////
 emData_t setEmData(data_t tData) {   // センサデータをEEPROM記憶用に変換
 
-  emData_t tEmData;                    // EEPROM内のバイトデータには処理上の都合により 0xFC, 0xFD, 0xFE, 0xFF が使えないので、
-  unsigned long tDta;                  // tDtaは0-16,003,007とする必要がある。
-  unsigned long tDtb;                  // tDtbは0-63503とする必要がある。
+  emData_t tEmData;                  // EEPROM内のバイトデータには処理上の都合により 0xFC, 0xFD, 0xFE, 0xFF が使えないので、
+  unsigned long tDta;                // tDtaは0-63001とする必要がある。
+  unsigned long tDtb;                // tDtbは0-63001とする必要がある。
 
-  if ((tData.dt1a == NULLDATA_MARK) || (tData.dt1a > 125.0) || (tData.dt1a < -40.0)) {   // 温度データの制限処理
-    tData.dt1a = 150;                  // エラー時は 150℃ 125.0は仕様上の出力最高値
+  if (tData.dt1a == NULLDATA_MARK) {   // 温度データの制限処理
+    tData.dt1a = 117.1;                // エラー時は 117.1℃
+  } else if (tData.dt1a > 117.0) {
+    tData.dt1a = 117.0;
+  } else if (tData.dt1a < -40.0) {
+    tData.dt1a = -40.0;
   }
-  if (tData.dt1b == NULLDATA_MARK) {  // 湿度データの制限処理
-    tData.dt1b = 0;                   // 湿度エラー時は0%
-  } else if (tData.dt1b > 100) {      // 0％の処理は良いであろう。
+  if (tData.dt1b == NULLDATA_MARK) { // 湿度データの制限処理
+    tData.dt1b = 100.1;              // 湿度エラー時は100.1%
+  } else if (tData.dt1b > 100) {
     tData.dt1b = 100;
+  } else if (tData.dt1b < 0) {
+    tData.dt1b = 0;
   }
   // 温度と湿度を合わせて、0-16,003,007の整数値(tDta) に変換(小数点1桁まで) 
-  // 整数変換時に生じた誤差は切り捨てられるので、正しく整数変換＋四捨五入されるように補正するため40.05としている。
-  tDta = (unsigned long)((tData.dt1a  + 40.05) * 10)  * 1001 + (unsigned long)(tData.dt1b * 10);
+  // 整数変換時に生じた誤差は切り捨てられるので、正しく整数変換＋四捨五入されるように補正するため0.05を加算している。
+  tDta = (unsigned long)((tData.dt1a  + 40.05) * 10)  * 1002 + ((unsigned long)(tData.dt1b + 0.05) * 10);
   // 変換した整数値(tDta)を0-251の範囲の3バイトに分解
   tDtb = tDta / 252;
+  tDta = tDta % 252;
   tEmData.data1a = tDtb / 252; // tEmData.data1a, data1b, data1cは0-251まで
   tEmData.data1b = tDtb % 252;
-  tEmData.data1c = tDta % 252;
+  tEmData.data1c = tDta;
 
 #ifdef DUAL_SENSORS
-  if ((tData.dt2a == NULLDATA_MARK) || (tData.dt2a > 125.0) || (tData.dt2a < -40.0)) {   // 温度データの制限処理
-    tData.dt1a = 150;                  // エラー時は 150℃ 125.0は仕様上の出力最高値
+  if (tData.dt2a == NULLDATA_MARK) {   // 温度データの制限処理
+    tData.dt1a = 150;                // エラー時は 150℃ 125.0は仕様上の出力最高値
   }
-  if (tData.dt2b == NULLDATA_MARK) {  // 複数データがある場合は個別に処理
-    tData.dt2b = 0;                   // 湿度エラー時は0%
-  } else if (tData.dt2b > 100) {      // 0％の処理は良いであろう。
+  if (tData.dt2b == NULLDATA_MARK) { // 複数データがある場合は個別に処理
+    tData.dt2b = 0;                  // 湿度エラー時は0%
+  } else if (tData.dt2b > 100) {     // 0％の処理は良いであろう。
     tData.dt2b = 100;
   }
   // 温度と湿度を合わせて、0-16,003,007の整数値(tDta) に変換(小数点1桁まで)
-  // 整数変換時に生じた誤差は切り捨てられるので、正しく整数変換＋四捨五入されるように補正するため40.05としている。
-  tDta = (unsigned long)((tData.dt2a  + 40.05) * 10)  * 1001 + (unsigned long)(tData.dt2b * 10);
+  // 整数変換時に生じた誤差は切り捨てられるので、正しく整数変換＋四捨五入されるように補正するため0.05を加算している。
+  tDta = (unsigned long)((tData.dt2a  + 40.05) * 10)  * 1002 + (unsigned long)((tData.dt2b + 0.05) * 10);
   // 変換した整数値(tDta)を0-251の範囲の3バイトに分解
   tDtb = tDta / 252;
+  tDta = tDta % 252;
   tEmData.data2a = tDtb / 252; // tEmData.data2a, data2b, data2cは0-251まで
   tEmData.data2b = tDtb % 252;
-  tEmData.data2c = tDta % 252;
+  tEmData.data2c = tDta;
 #endif
   return tEmData;
 }
@@ -367,28 +356,32 @@ emData_t setEmData(data_t tData) {   // センサデータをEEPROM記憶用に�
 
 data_t restoreEmData(emData_t tEmData) { // EEPROM内の変換データを元に戻す。
   data_t tData;
-  unsigned long tDt;
+  unsigned long tDta;
+  unsigned long tDtb;
   
   if (tEmData.data1a == EM_NULLDATA_MARK) {
     tData = nullData;
   } else {
-    tDt = (unsigned long)(tEmData.data1a) * 252 * 252 + (unsigned long)(tEmData.data1b) * 252 + (unsigned long)(tEmData.data1c);
-    tData.dt1a = ((float)(tDt / 1001) / 10) - 40.0;
-    if (tData.dt1a == 150) tData.dt1a = NULLDATA_MARK;
+    tDta = (unsigned long)(tEmData.data1a) * 252 * 252 + (unsigned long)(tEmData.data1b) * 252 + (unsigned long)(tEmData.data1c);
+    tDtb = tDta / 1002;
+    tDta = tDta % 1002;
+    tData.dt1a = (float)(tDtb) / 10 - 40.0;
+    if (tData.dt1a == 117.1) tData.dt1a = NULLDATA_MARK;
 
-    tData.dt1b = (float)(tDt % 1001) / 10;
-    if (tData.dt1b == 0) tData.dt1b = NULLDATA_MARK;
+    tData.dt1b = (float)(tDta) / 10;
+    if (tData.dt1b == 100.1) tData.dt1b = NULLDATA_MARK;
 
 #ifdef DUAL_SENSORS
-    tDt = (unsigned long)(tEmData.data2a) * 252 * 252 + (unsigned long)(tEmData.data2b) * 252 + (unsigned long)(tEmData.data2c);
-    tData.dt2a = ((float)(tDt / 1001) / 10) - 40.0;
-    if (tData.dt2a == 150) tData.dt2a = NULLDATA_MARK;
+    tDta = (unsigned long)(tEmData.data2a) * 252 * 252 + (unsigned long)(tEmData.data2b) * 252 + (unsigned long)(tEmData.data2c);
+    tDtb = tDta / 1002;
+    tDta = tDta % 1002;
+    tData.dt2a = (float)(tDtb) / 10 - 40.0;
+    if (tData.dt2a == 117.1) tData.dt2a = NULLDATA_MARK;
 
-    tData.dt2b = (float)(tDt % 1001) / 10;
-    if (tData.dt2b == 0) tData.dt2b = NULLDATA_MARK;
+    tData.dt2b = (float)(tDta) / 10;
+    if (tData.dt2b == 100.1) tData.dt2b = NULLDATA_MARK;
 #endif
   }
   return tData;
 }
-
-#endif
+#endif // HQ_DATA

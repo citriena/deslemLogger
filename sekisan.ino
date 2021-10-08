@@ -1,12 +1,21 @@
+////////////////////////////////////////////////////////////////
+// 電池長期間駆動Arduinoロガー
+// deslemLogger (deep sleep EEPROM logger)用補助スケッチ
+// 積算温度を使う場合の積算処理、LCD表示処理
+//
+// センサはサーミスタ使用を想定しているが、data_t型の最初の変数を使って
+// 積算処理するので、同様の設定のセンサであれば積算処理可能
+// ただし、LCD表示は積算に使う温度データ以外には現状対応していない。
+//
+////////////////////////////////////////////////////////////////
+//                  積算関係定義
+////////////////////////////////////////////////////////////////
 #ifdef SEKISAN
-
-////////////////////////////////////////////////////////////////
-//                  積算関係
-////////////////////////////////////////////////////////////////
 
 #define SEKISAN_LEVERAGE    10  // 積算温度を0.1℃単位で整数計算するため、10倍する。
                                 // unsigned intなので最大積算温度は6502℃日。足りない場合は精度は少し落ちるが5倍値等にする。
-#define BACKUP_DATA_ADDRESS  0  // 積算温度、積算開始日等のバックアップデータを保存するArduino EEPROMのアドレス
+// #define BACKUP_DATA_ADDRESS  0  // 積算温度、積算開始日等のバックアップデータを保存するArduino EEPROMのアドレス
+                                // deslemLoggerCofig.h内での定義に変更
 
 #define REF_TEMP    (16.0 * SEKISAN_LEVERAGE) // 積算温度の基準温度。16℃は熱帯作物用
 
@@ -40,9 +49,10 @@ typedef struct {        // 1日の簡易データバックアップのうちstar
 
 
 //YMD_t gStartYMD[5] = {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}};  // メモリ節約のため、EEPROMの情報を直接使うことにした。
+                                                                   // コードがわかりにくくなったので良くなかったか。
 
 
-// 積算温度　10倍値のunsigned intなので、最大積算温度は6502℃日。足りない場合は精度は少し落ちるが5倍値等にする。
+// 積算温度　10倍値のunsigned intなので、最大積算温度は6502℃日。足りない場合は精度は少し落ちるが5倍値等にする。もしくはlongで定義する．
 unsigned int gAccumTemp[5] = {0, 0, 0, 0, 0};  // 積算温度（１０倍値）
 unsigned int gAccumTemp0[5] = {0, 0, 0, 0, 0}; // 積算温度（１０倍値） 0℃基準
 byte gAt[5] = {0, 0, 0, 0, 0};                 // 5個の積算温度のどれを積算するか
@@ -68,7 +78,7 @@ void dataSekisan(data_t tData, tmElements_t tm) {
   kasanData += (tData.dt1a * SEKISAN_LEVERAGE);       // 10倍値とする。
 //  Serial.println(kasanData);//OK
   dataCount++;
-  if (tm.Day != lastTm.Day) {                            // 日付が変わったら日平均温度算出して積算＆バックアップ処理
+  if (tm.Day != lastTm.Day) {                         // 日付が変わったら日平均温度算出して積算＆バックアップ処理
     kasanData /= dataCount;                           // 日平均温度算出。単純に1日の回数（6*24）で割ると初日は正確になるが、いろいろ面倒
     EEPROM.get(BACKUP_DATA_ADDRESS, lastSekisanData); // バックアップしていた値を読み出す。
     if (lastSekisanData.dataStatus == 0x00) {         // バックアップデータ有の場合＝積算中は情報更新
@@ -225,13 +235,18 @@ void resetBackupData() { // EEPROMバックアップデータを初期化＆バ�
 
 
 void lcdTime(tmElements_t tm, lcdTimeMode_t mode, char cursorColumn) { // LCD first line
-  if ((gDispMode == MENU_NO) && (mode == DISP_TIME_MODE)) return;
+  if ((gDispMode == MENU_NO) && (mode == DATA_TIME_MODE)) {
+    return;
+  } else if (mode == MENU_TIME_MODE) {
+    lcd.setCursor(0, 1); // メニュー導入画面では時計は2行目
+  } else {
+    lcd.setCursor(0, 0); // 時刻設定画面では時計は1行目
+  }
   //  lastSekisanData_t lastSekisanData;
   startYMDdata_t emBackup;
   EEPROM.get(BACKUP_DATA_ADDRESS, emBackup);
 
-  lcd.setCursor(0, 0);
-  if (mode == SET_TIME_MODE) {
+  if (mode != DATA_TIME_MODE){  // メニュー導入画面，時計設定モード時は年も表示
     lcd.print(tmYearToCalendar(tm.Year));
     lcd.print(F("/"));
   }
@@ -243,13 +258,13 @@ void lcdTime(tmElements_t tm, lcdTimeMode_t mode, char cursorColumn) { // LCD fi
   lcd.print(F(" "));
   if (tm.Hour < 10) lcd.print(F("0"));
   lcd.print(tm.Hour, DEC);
-  if (mode == SET_TIME_MODE) {
+  if (mode != DATA_TIME_MODE){  // メニュー導入画面，時計設定モード時は年も表示
     lcd.print(F(":"));
   }
   if (tm.Minute < 10) lcd.print(F("0"));
   lcd.print(tm.Minute, DEC);
   lcd.print(F(" "));
-  if (mode == DISP_TIME_MODE) {
+  if (mode == DATA_TIME_MODE) {
     if (emBackup.dataStatus == 0) {     // 積算情報がある場合
       if (emBackup.startYMD[gDispMode].Month < 10) lcd.print(F("0"));
       lcd.print(emBackup.startYMD[gDispMode].Month);
@@ -265,8 +280,13 @@ void lcdTime(tmElements_t tm, lcdTimeMode_t mode, char cursorColumn) { // LCD fi
 }
 
 
+void lcdTime(tmElements_t tm, lcdTimeMode_t mode) { // LCD first line
+  lcdTime(tm, mode, -1);
+}
+
+
 void lcdTime(tmElements_t tm) { // LCD first line
-  lcdTime(tm, DISP_TIME_MODE, -1);
+  lcdTime(tm, DATA_TIME_MODE, -1);
 }
 
 
@@ -274,12 +294,12 @@ void lcdTime(tmElements_t tm) { // LCD first line
 //          display data to lcd                     //
 //////////////////////////////////////////////////////
 
-void lcdData(data_t tData, byte atNo) { // LCD second line
+void lcdData(data_t tData) {
   if (gDispMode == MENU_NO) return;
-  logIcon(gAt[atNo] == 1);
+  logIcon(gAt[gDispMode] == 1);
   //  printAccumIcon(gAt[atNo] == 1);
   lcd.setCursor(0, 1);
-  lcd.print(atNo + 1);
+  lcd.print(gDispMode + 1);
   lcd.print(F(" "));
   if (tData.dt1a != NULLDATA_MARK) {
     if (tData.dt1a < 10) {
@@ -293,10 +313,10 @@ void lcdData(data_t tData, byte atNo) { // LCD second line
   lcd.setCursor(6, 1);
   lcd.print(F("A"));
 
-  printAT(gAccumTemp0[atNo]);
+  printAT(gAccumTemp0[gDispMode]);
   lcd.print(F(" "));
-  printAT(gAccumTemp[atNo]);
-  if (gAt[atNo] == 1) {
+  printAT(gAccumTemp[gDispMode]);
+  if (gAt[gDispMode] == 1) {
     lcd.setCursor(6, 1);
     lcd.blink();
   }
@@ -316,7 +336,7 @@ void printAccumIcon(bool isDisp) {
 }
 
 
-void printAT(int AT) {
+void printAT(unsigned int AT) {
   AT /= SEKISAN_LEVERAGE; // 10倍値なので元に戻す。
   if (AT < 1000) lcd.print(F("0"));
   if (AT <  100) lcd.print(F("0"));
@@ -340,32 +360,4 @@ void printAT(int AT) {
   }
 
 */
-
-
-////////////////////////////////////////////////////
-//   write xEEPROM log data to SD with date       //
-////////////////////////////////////////////////////
-void writeLog2SD(tmElements_t tm, data_t tData, intervalUnit_t tLogIntervalUnit) {
-
-  logfile.print(tmYearToCalendar(tm.Year), DEC);
-  logfile.print(F("/"));
-  logfile.print(tm.Month, DEC);
-  logfile.print(F("/"));
-  logfile.print(tm.Day, DEC);
-  logfile.print(F(","));
-  logfile.print(tm.Hour, DEC);
-  logfile.print(F(":"));
-  logfile.print(tm.Minute, DEC);
-  logfile.print(F(","));
-  if (tData.dt1a != NULLDATA_MARK) {
-    logfile.print(tData.dt1a, 1);
-  }
-#ifdef DUAL_SENSORS
-  logfile.print(F(","));
-  if (tData.dt2a != NULLDATA_MARK) {
-    logfile.print(tData.dt2a, 1);
-  }
-#endif
-  logfile.println();
-}
 #endif

@@ -1,7 +1,11 @@
-// delemLogger.ino 用のセンサライブラリ
+////////////////////////////////////////////////////////////////
+// delemLogger.ino 用のSensirion SHT2x/3x センサライブラリ
+// sensorSHT.h ver.1.01 by citriena
 // delemLogger.inoと同じフォルダに置く。
-// 複数のセンサライブラリがある場合は使わないライブラリは別のフォルダに移動しておく。
+// 複数のセンサライブラリがある場合，使わないライブラリは別のフォルダに移動しておく。
 // 同じフォルダに置いておくとコンパイルエラーとなる。
+// センサからデータを読み出すライブラリは別途必要．sensorSHT.cpp参照
+////////////////////////////////////////////////////////////////
 
 #ifndef _sensorSHT_h
 #define _sensorSHT_h
@@ -31,7 +35,7 @@ typedef struct {
 // センサのデータを適切に変換し、データを記憶するEEPROMメモリを節約
 // 処理の関係上データ型はbyteのみとする。メンバ名の規則も上と同様だが、最後のアルファベットはセンサの出力と対応する必要は無い。
 
-#ifdef ECO_DATA
+#ifdef SQ_DATA
 
 typedef struct {
   byte data1a;
@@ -59,11 +63,24 @@ typedef struct {
 
 #ifndef DUAL_SENSORS
 const data_t nullData = {NULLDATA_MARK, NULLDATA_MARK};
-const emData_t nullEmData = {EM_NULLDATA_MARK, EM_NULLDATA_MARK};  // EEPROMに書き込むバッファの初期化はEM_NULLDATA_MARK;これでデータ書込済かどうか識別する
 #else
 const data_t nullData = {NULLDATA_MARK, NULLDATA_MARK, NULLDATA_MARK, NULLDATA_MARK};
+#endif
+
+#ifdef SQ_DATA
+#ifndef DUAL_SENSORS
+const emData_t nullEmData = {EM_NULLDATA_MARK, EM_NULLDATA_MARK};  // EEPROMに書き込むバッファの初期化はEM_NULLDATA_MARK;これでデータ書込済かどうか識別する
+#else
 const emData_t nullEmData = {EM_NULLDATA_MARK, EM_NULLDATA_MARK, EM_NULLDATA_MARK, EM_NULLDATA_MARK};
 #endif
+#else
+#ifndef DUAL_SENSORS
+const emData_t nullEmData = {EM_NULLDATA_MARK, EM_NULLDATA_MARK, EM_NULLDATA_MARK};  // EEPROMに書き込むバッファの初期化はEM_NULLDATA_MARK;これでデータ書込済かどうか識別する
+#else
+const emData_t nullEmData = {EM_NULLDATA_MARK, EM_NULLDATA_MARK, EM_NULLDATA_MARK, EM_NULLDATA_MARK, EM_NULLDATA_MARK, EM_NULLDATA_MARK};
+#endif
+#endif
+
 
 void initSensor();
 data_t getData();

@@ -1,9 +1,13 @@
+////////////////////////////////////////////////////////////////
 // 電池長期間駆動Arduinoロガーに使っているスケッチ
 // deslemLogger (deep sleep EEPROM logger)
 // https://github.com/citriena/deslemLogger
 // Copyright (C) 2021 by citriena
 //
 // センサーの種類、ロガーの動作等の設定変更は deslemLoggerConfig.h 内で行う。
+// センサ毎に異なる処理はライブラリや別ファイルとして分離
+// 他のスケッチでもそのまま利用できる日付処理やLCDアイコン処理も同様に分離
+////////////////////////////////////////////////////////////////
 
 #define SdFatLite               // 標準のSDライブラリでは無く、メモリ使用量が少ないSdFatLiteライブラリを使う。
 #include <Arduino.h>
@@ -22,23 +26,26 @@
 #include "timeLibSub.h"
 #include "deslemLoggerConfig.h"
 
-#ifdef NTC
+
+/////////////////////////////////////////////////////////////////
+//           センサ用ライブラリの読み込み
+/////////////////////////////////////////////////////////////////
+
+#ifdef SENSOR_NTC
 #include "sensorNTC.h"  // 他のセンサライブラリは同じフォルダに置かない（コンパイルエラーとなる）。
 #endif                  // 入れ替えたらArduino IDE再起動必要
 
-#ifdef SHT
+#ifdef SENSOR_SHT
 #include "sensorSHT.h"  // 他のセンサライブラリは同じフォルダに置かない（コンパイルエラーとなる）。
 #endif                  // 入れ替えたらArduino IDE再起動必要
 
-#ifdef SEKISAN
-#define MENU_NO          5 // LCDでメニューを表示する場合のgDispModeの番号。0は基本画面表示
-#else                      // 積算の場合は０－４が積算の切替で5が処理メニュー
-#define MENU_NO          1 // 積算以外では基本画面(0)と処理メニュー画面(1)の２つ
-#endif                     // 必要があれば、複数の別画面表示とすることも可能
-// その場合はMENU_NOを2以降にずらし、空いたgDispModeに対応する表示をlcdTime(), lcdData()等で定義する。
+#ifdef SENSOR_BME280
+#include "sensorBME280.h"  // 他のセンサライブラリは同じフォルダに置かない（コンパイルエラーとなる）。
+#endif                     // 入れ替えたらArduino IDE再起動必要
+
 
 /////////////////////////////////////////////////////////////////
-//           ライブラリ初期化設定（24xx1025の数等により変更）
+//  外部EEPROM用ライブラリコンストラクタ設定（24xx1025の数等により変更）
 /////////////////////////////////////////////////////////////////
 
 // set external EEPROM
@@ -50,8 +57,9 @@
 //EEPROM_24xx1025 exEeprom(EPR_ADDR0, EPR_ADDR1, EPR_ADDR2); // 24xx1025 3個
 EEPROM_24xx1025 exEeprom(EPR_ADDR0, EPR_ADDR1, EPR_ADDR2, EPR_ADDR3); // 24xx1025 4個
 
-//************** USER SETTING END ***********************************
-//////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////
+//                  その他ライブラリコンストラクタ
+/////////////////////////////////////////////////////////////////
 
 RX8900RTC RTC;
 
@@ -76,7 +84,7 @@ typedef struct {
   byte Minute;
   byte Second;
   byte LogInterval; // 上位2ビット：単位, 下位6ビット：記録間隔
-} emLogHeader_t;    //ログデータヘッダ型
+} emLogHeader_t;    //ログデータヘッダ型（EEPROMから読み出す場合用）
 
 
 typedef struct {
@@ -89,7 +97,7 @@ typedef struct {
   byte Second;
   byte LogInterval; // 上位2ビット：単位, 下位6ビット：記録間隔
   byte endMark;     // 0xFF
-} emLogHeaderWriter_t;  //ログデータヘッダ型（書き込み用に最後にendMark追加）
+} emLogHeaderWriter_t;  //ログデータヘッダ型（EEPROM書込用に最後にendMark追加）
 ///////////////////////////////////////////
 
 
@@ -123,19 +131,20 @@ typedef enum {  // EEPROM書込アドレスを進めるかどうか。データ�
 } addressChange_t;
 
 
-typedef enum {  // 時計表示のモード
-  DISP_TIME_MODE, // 時刻表示時
+typedef enum {  // 時計表示動作モード
+  DATA_TIME_MODE, // データ画面で時刻表示時
+  MENU_TIME_MODE, // メニュー画面で時刻表示時
   SET_TIME_MODE   // 時刻設定時
 } lcdTimeMode_t;
 
 
-typedef enum {
+typedef enum { // データ記録モード
   ENDLESS_MODE,
   WRITE_ONCE_MODE
 } logMode_t;
 
 /////////////////////////////////////////////////////////////////
-// 　　　　　　広域変数宣言  ユーザー設定（ロギング条件設定）。具体的数値はdeslemLoggerConfig.h内のマクロ定義で設定
+// 広域変数宣言  ユーザー設定（ロギング条件設定）。具体的数値はdeslemLoggerConfig.h内のマクロ定義で設定
 // いずれメニューで設定できるようにしたい（このため広域変数）。
 // LCDの時刻更新はタイマー起動時なので、LCDに時刻を表示する場合はタイマー割り込み間隔を1分間隔以下としないと時刻表示更新が遅れる。
 /////////////////////////////////////////////////////////////////
@@ -151,6 +160,7 @@ intervalUnit_t gIntervalUnit = INTERVAL_UNIT;  // 上記の間隔の単位（時
 tmElements_t gFileTm;      // ファイル日時を設定するマクロで用い、ファイル日時を記録開始日時とするために使用する。
 long gWriteEmAddress = 0;  // 外部EEPROMのログ書込アドレス
 byte gDispMode = 0;        // ボタンを押したときに変える画面の種類。0は基本モード、#define で設定するMENU_NOはメニューの番号（gDispModeの最大値）
+boolean gLCDon = true;     // LCD表示しているかどうか。
 
 volatile boolean rtcint = false;   // 割り込み処理中のフラグ（RTCタイマー） 割り込みサービスルーチンで設定するので volatile必要
 volatile boolean lvlint = false;   // 割り込み処理中のフラグ（手動割り込み） 割り込みサービスルーチンで設定するので volatile必要
@@ -167,11 +177,11 @@ File logfile;
 // 　　　　　　　　　　　　　　基本処理
 /////////////////////////////////////////////////////////////////
 
-#ifndef SET_ID
+#ifndef SET_ID  // ロガーID設定用に別スケッチを作っていたが、統合して使い分けるようにした。
 void setup() {
   char loggerId[13] = "";
 
-  //  Serial.begin(9600);
+//  Serial.begin(9600);
   Wire.begin();
   lcd.begin(16, 2, LCD_5x8DOTS);
   lcd.setContrast(40);
@@ -184,7 +194,9 @@ void setup() {
   lcd.print(loggerId);
 
   RTC.init();
+#ifdef REBOOT_TIME_SET
   setTimeButton();
+#endif
 #ifdef SEKISAN
   readBackupData(RTC.read());
 #endif
@@ -200,7 +212,7 @@ void setup() {
   lcd.clear();
   initSensor();              // initialize sensor
   lcdTime(RTC.read());       // display time on the LCD
-  lcdData(getData(), 0);     // display temperatures on the LCD
+  lcdData(getData());        // display temperatures on the LCD
   setManualInt();            // set manual interrupt
   setAlarmInt();             // set periodical alarm interrupt
   resetEmDataBuff();         //
@@ -231,12 +243,17 @@ void loop() {
 /////////////////////////////////////////////////////////////////
 
 void manualJob() { // ボタンを押したら時の処理
-  lcd.display();  // re-desplay during LCD off time
-  lcd.noBlink();  // 積算中等をブリンクで表示しているので、一旦ブリンクを停止する。
+  if (!gLCDon) { // LCDが消えている場合はとりあえずLCDをONにする処理のみ
+    lcd.display();   // re-desplay during LCD off time
+    gLCDon = true;
+    return;
+  }
+  lcd.noBlink();   // 積算中等をブリンクで表示しているので、一旦ブリンクを停止する。
   if (keyLongPressed()) {
     switch (gDispMode) {
-      case MENU_NO:
+      case MENU_NO:    // 処理メニュー導入画面
         shoriMenu();
+        lcd.clear();
         gDispMode = 0; // 処理メニューの次は表示を最初に戻す（メニューが最後）。
         break;
       default:
@@ -247,18 +264,22 @@ void manualJob() { // ボタンを押したら時の処理
         break;
     }
     lcdTime(RTC.read());
-    lcdData(getData(), gDispMode);
+    lcdData(getData());
     return;  // 設定に入ったらgDispModeは元のまま
   }
   gDispMode++;
-  if (gDispMode > MENU_NO) gDispMode = 0;
+  if (gDispMode > MENU_NO) {
+    gDispMode = 0;
+    lcd.clear();  // データ表示に戻った場合、2行目のデータ表示がないと表示が残るので、全画面消去で対応
+  }
   if (gDispMode == MENU_NO) {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print(F("SHORI"));
+    lcdTime(RTC.read(), MENU_TIME_MODE);
   } else {
     lcdTime(RTC.read());
-    lcdData(getData(), gDispMode);
+    lcdData(getData());
   }
   while (digitalRead(MANUAL_INT_PIN) == LOW); // キーが離されるまで待つ。
 }
@@ -278,14 +299,14 @@ void shoriMenu() {
           if (selected) {
             setTimeButton();
           } else {
-            lcd.print(F("DATE&TIME    "));
+            lcd.print(F("DATE&TIME       "));
           }
           break;
         case 1: // データ回収
           if (selected) {
             log2SD();
           } else {
-            lcd.print(F("DATA COPY    "));
+            lcd.print(F("DATA COPY       "));
           }
           break;
         case 2: // リセット
@@ -308,7 +329,7 @@ void shoriMenu() {
               ct++;
             } while (ct < 500);   // ボタンが押されるか5秒待つ。delay(10)×500で5秒
           } else {
-            lcd.print(F("DATA RESET   "));
+            lcd.print(F("DATA RESET      "));
           }
           break;
         /*
@@ -325,10 +346,12 @@ void shoriMenu() {
             lcd.print(F("BACK         "));
           }
           break;
+      } // switch (setteiNo)
+      if (selected) { // どれか処理が終了したら
+        return;       // 処理メニューを終わる。
       }
-      if (selected) return;
       while (digitalRead(MANUAL_INT_PIN) == LOW); // キーが離されるまで待つ。
-    }
+    } // if (keyPressed())
     if (digitalRead(MANUAL_INT_PIN) == LOW) {
       keyPressed = true;
       count = 0;
@@ -457,7 +480,7 @@ void cycleJob(tmElements_t tm) {
   bool isNewLog;                       // 新しいログファイルにするかどうか。この情報をヘッダに書き込んでおき、読み出すときにこれに従って処理。
 
   tData = getData();                   // センサ等からデータ取得
-  lcdData(tData, gDispMode);
+  lcdData(tData);
 
   // ロギングを停止できるようにする時用のコード
   //いずれメニューで、ロギング開始、停止、ロギング間隔を設定できるようにしたい。
@@ -616,9 +639,9 @@ void setHeader(tmElements_t tm, bool isNewLog) {
   emLogHeader.Hour = tm.Hour;
   emLogHeader.Minute = tm.Minute;
   emLogHeader.Second = tm.Second;
-  emLogHeader.LogInterval = gLogInterval | ((byte)gIntervalUnit << 6); // 上位2ビット：単位, 下位6ビット：記録間隔
+  emLogHeader.LogInterval = (gLogInterval & 0b00111111) | ((byte)gIntervalUnit << 6); // 上位2ビット：単位, 下位6ビット：記録間隔。gLogIntervalの上位ビットクリアは念のため
   emLogHeader.endMark = EM_FORMAT_MARK;
-  exEeprom.writeBlock(gWriteEmAddress, emLogHeader);                    // ヘッダをEEPROMに書込み
+  exEeprom.writeBlock(gWriteEmAddress, emLogHeader);                   // ヘッダをEEPROMに書込み
   gWriteEmAddress = exEeprom.incLongAddress(gWriteEmAddress, sizeof(emLogHeader) - 1);  //ヘッダの分 EEPROMの書込みアドレスを進める。ただしendMarkは上書きするので-1
 }
 
@@ -809,7 +832,7 @@ boolean initSD() {
   // initialize the SD card
   // make sure that the default chip select pin is set to
   // output, even if you don't use it:
-  pinMode(CHIP_SELECT, OUTPUT); // T.Ogata
+  pinMode(CHIP_SELECT, OUTPUT); // citriena
   // see if the card is present and can be initialized:
   if (!SD.begin(CHIP_SELECT)) {
     errorDetect("SD card");
@@ -830,6 +853,9 @@ boolean initFile(tmElements_t tm) { // 最初のヘッダ時刻をファイル�
   EEPROM.get(LOGGER_ID_ADDRESS, loggerId);
   logfile.print(F("Logger ID,"));
   logfile.println(loggerId);
+  logfile.print(F("SENSOR,"));
+  logfile.println(F(SENSOR_NAME));
+  writeFieldName();
   return true;
 }
 
@@ -1020,10 +1046,16 @@ unsigned int adc() {                 // ADCの値を読む
   return dL | (dH << 8);             // 10ビットに合成した値を返す
 }
 
+
 #else //SET_ID
 
+//////////////////////////////////////////////////////////
+// ロガーID，精密なサーミスタ分圧抵抗値等個別ロガー毎の設定をEEPROMに書き込む。
+// deslemLoggerConfig.h内で SET_ID が定義されている場合に実行される。
+//////////////////////////////////////////////////////////
+
 //char gLoggerId[13] = "Logger14";
-char hLoggerId[13] = SET_ID;
+char gLoggerId[13] = SET_ID;
 
 
 void setup() {

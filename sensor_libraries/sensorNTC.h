@@ -1,3 +1,8 @@
+//////////////////////////////////////////////////////
+// 電池長期間駆動Arduinoロガー
+// deslemLogger (deep sleep EEPROM logger)用補助スケッチ
+// サーミスタを使う場合のセンサー処理ライブラリ
+//////////////////////////////////////////////////////
 #ifndef _sensorNTC_h
 #define _sensorNTC_h
 #include <Arduino.h>

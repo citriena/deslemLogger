@@ -1,3 +1,9 @@
+//////////////////////////////////////////////////////
+// 電池長期間駆動Arduinoロガー
+// deslemLogger (deep sleep EEPROM logger)用補助スケッチ
+// LCD表示関係の共通処理
+//////////////////////////////////////////////////////
+
 void logIcon(bool showIcon) {
   if (showIcon) {
     lcd.setIcon(0x06, 0b10000); // show recording icon
@@ -42,7 +48,9 @@ void lcdControl(byte hr) {
   if (LCD_ON_TIME >= LCD_OFF_TIME) ++lcdOn;
   if (lcdOn > 1) {
     lcd.display();
+    gLCDon = true;
   } else {
     lcd.noDisplay();
+    gLCDon = false;
   }
 }

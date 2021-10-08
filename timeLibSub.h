@@ -1,3 +1,9 @@
+//////////////////////////////////////////////////////
+// 電池長期間駆動Arduinoロガー
+// deslemLogger (deep sleep EEPROM logger)用補助スケッチ
+// わかりやすいようにメインのスケッチから日時処理を分離
+//////////////////////////////////////////////////////
+
 #ifndef _timeLibSub_h
 #define _timeLibSub_h
 #include <TimeLib.h>            // https://github.com/PaulStoffregen/Time
