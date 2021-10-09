@@ -275,9 +275,7 @@ void manualJob() { // ボタンを押したら時の処理
   if (gDispMode == MENU_NO) {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print(F("SHORI  DATA:"));
-    lcd.print((gWriteEmAddress * 100)/exEeprom.maxLongAddress());
-    lcd.print(F("%"));
+    lcd.print(F("SHORI"));
     lcdTime(RTC.read(), MENU_TIME_MODE);
   } else {
     lcdTime(RTC.read());
