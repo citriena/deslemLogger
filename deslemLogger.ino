@@ -909,7 +909,7 @@ void dateTime(uint16_t* date, uint16_t* time) {
   // FAT_DATEマクロでフィールドを埋めて日付を返す
   // fill date to FAT_DATE macro
   //  *date = FAT_DATE(tmYearToCalendar(tm.Year), tm.Month, tm.Day);
-  *date = FAT_DATE(tmYearToCalendar(gFileTm.Year), gFileTm.Month, gFileTm.Day);
+  *date = FAT_DATE(tmYearToCalendar(gFileTm.Year), gFileTm.Month, gFileTm.Day); // 現在時刻ではなく、指定時刻を設定するために変更
 
   // FAT_TIMEマクロでフィールドを埋めて時間を返す
   // fill time to FAT_TIME macro

@@ -146,7 +146,6 @@ data_t avgData() {
 emData_t setEmData(data_t tData) {   // センサデータをEEPROM記憶用に変換
 
   emData_t tEmData;
-  unsigned long tDt;                   // tDtは0-16,003,007とする必要がある。
   unsigned long tDta;                  // tDtaは0-63503とする必要がある。
   unsigned long tDtb;                  // tDtaは0-63503とする必要がある。
 
@@ -161,8 +160,8 @@ emData_t setEmData(data_t tData) {   // センサデータをEEPROM記憶用に�
     tData.dt1b = 101;                   // 湿度エラー時は101%
   } else if (tData.dt1b > 100) {
     tData.dt1b = 100;
-  } else if (tData.dt1b < 0) {
-    tData.dt1b = 0;
+  } else if (tData.dt1b < 5) {
+    tData.dt1b = 5;
   }
   if (tData.dt1c == NULLDATA_MARK) { // 複数データがある場合は個別に処理
     tData.dt1c = 1051;                 // エラー時は1050hPa
@@ -172,12 +171,12 @@ emData_t setEmData(data_t tData) {   // センサデータをEEPROM記憶用に�
     tData.dt1c = 850;
   }
   // 整数変換時に生じた誤差は切り捨てられるので、正しく整数変換＋四捨五入されるように補正するため0.5，0.05加算している。
-  tDt = (unsigned long)((tData.dt1a  + 10.05) * 10) * (97 * 202) + (unsigned long)(tData.dt1b - 5.0 + 0.5) * 202 + (unsigned long)(tData.dt1c - 850 + 0.5);
-  tDta = tDt / 252;
-  tDtb = tDt % 252;
-  tEmData.data1a = tDta / 252; // tEmData.data1a, data1b, data1cは0-251まで
-  tEmData.data1b = tDta % 252;
-  tEmData.data1c = tDtb;
+  tDta = (unsigned long)((tData.dt1a  + 10.05) * 10) * (97 * 202) + (unsigned long)(tData.dt1b - 5.0 + 0.5) * 202 + (unsigned long)(tData.dt1c - 850 + 0.5);
+  tDtb = tDta / 252;
+  tDta = tDta % 252;
+  tEmData.data1a = tDtb / 252; // tEmData.data1a, data1b, data1cは0-251まで
+  tEmData.data1b = tDtb % 252;
+  tEmData.data1c = tDta;
 
 #ifdef DUAL_SENSORS
 
@@ -192,8 +191,8 @@ emData_t setEmData(data_t tData) {   // センサデータをEEPROM記憶用に�
     tData.dt2b = 100.1;                   // 湿度エラー時は100.1%
   } else if (tData.dt2b > 100) {
     tData.dt2b = 100;
-  } else if (tData.dt2b < 0) {
-    tData.dt2b = 0;
+  } else if (tData.dt2b < 5) {
+    tData.dt2b = 5;
   }
   if (tData.dt2c == NULLDATA_MARK) { // 複数データがある場合は個別に処理
     tData.dt2c = 1051;                 // エラー時は1050hPa
@@ -203,12 +202,12 @@ emData_t setEmData(data_t tData) {   // センサデータをEEPROM記憶用に�
     tData.dt2c = 850;
   }
   // 整数変換時に生じた誤差は切り捨てられるので、正しく整数変換＋四捨五入されるように補正するため0.5，0.05加算している。
-  tDt = (unsigned long)((tData.dt2a  + 10.05) * 10) * (97 * 202) + (unsigned long)(tData.dt2b - 5.0 + 0.5) * 202 + (unsigned long)(tData.dt2c - 850 + 0.5);
-  tDta = tDt / 252;
-  tDtb = tDt % 252;
-  tEmData.data2a = tDta / 252; // tEmData.data2a, data2b, data2cは0-251まで
-  tEmData.data2b = tDta % 252;
-  tEmData.data2c = tDtb;
+  tDta = (unsigned long)((tData.dt2a  + 10.05) * 10) * (97 * 202) + (unsigned long)(tData.dt2b - 5.0 + 0.5) * 202 + (unsigned long)(tData.dt2c - 850 + 0.5);
+  tDtb = tDta / 252;
+  tDta = tDta % 252;
+  tEmData.data2a = tDtb / 252; // tEmData.data2a, data2b, data2cは0-251まで
+  tEmData.data2b = tDtb % 252;
+  tEmData.data2c = tDta;
 #endif
   return tEmData;
 }
@@ -216,8 +215,8 @@ emData_t setEmData(data_t tData) {   // センサデータをEEPROM記憶用に�
 
 data_t restoreEmData(emData_t tEmData) { // EEPROM内の変換データを元に戻す。
   data_t tData;
-  unsigned int tDta;
-  unsigned int tDtb;
+  unsigned long tDta;
+  unsigned long tDtb;
   
   if (tEmData.data1a == EM_NULLDATA_MARK) {
     tData = nullData;
