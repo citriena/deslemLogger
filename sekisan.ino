@@ -235,13 +235,6 @@ void resetBackupData() { // EEPROMバックアップデータを初期化＆バ�
 
 
 void lcdTime(tmElements_t tm, lcdTimeMode_t mode, char cursorColumn) { // LCD first line
-  if ((gDispMode == MENU_NO) && (mode == DATA_TIME_MODE)) {
-    return;
-  } else if (mode == MENU_TIME_MODE) {
-    lcd.setCursor(0, 1); // メニュー導入画面では時計は2行目
-  } else {
-    lcd.setCursor(0, 0); // 時刻設定画面では時計は1行目
-  }
   //  lastSekisanData_t lastSekisanData;
   startYMDdata_t emBackup;
   EEPROM.get(BACKUP_DATA_ADDRESS, emBackup);
@@ -280,22 +273,12 @@ void lcdTime(tmElements_t tm, lcdTimeMode_t mode, char cursorColumn) { // LCD fi
 }
 
 
-void lcdTime(tmElements_t tm, lcdTimeMode_t mode) { // LCD first line
-  lcdTime(tm, mode, -1);
-}
-
-
-void lcdTime(tmElements_t tm) { // LCD first line
-  lcdTime(tm, DATA_TIME_MODE, -1);
-}
-
-
 //////////////////////////////////////////////////////
 //          display data to lcd                     //
 //////////////////////////////////////////////////////
 
 void lcdData(data_t tData) {
-  if (gDispMode == MENU_NO) return;
+  if (gDispMode >= CONFIG_NO) return; // RTC割り込みでデータ処理後に通常はデータを表示するが、設定表示、メニュー時は表示しない。
   logIcon(gAt[gDispMode] == 1);
   //  printAccumIcon(gAt[atNo] == 1);
   lcd.setCursor(0, 1);
@@ -360,4 +343,4 @@ void printAT(unsigned int AT) {
   }
 
 */
-#endif
+#endif // SEKISAN

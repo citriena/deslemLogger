@@ -4,6 +4,26 @@
 // LCD表示関係の共通処理
 //////////////////////////////////////////////////////
 
+
+void lcdTime(tmElements_t tm) { // LCD first line
+  if (gDispMode < CONFIG_NO) {
+    lcd.setCursor(0, 0); // データ画面では時計は1行目
+    lcdTime(tm, DATA_TIME_MODE, -1);
+  } else if (gDispMode == MENU_NO) {
+    lcd.setCursor(0, 1); // メニュー導入画面では時計は2行目
+    lcdTime(tm, MENU_TIME_MODE, -1);
+  } // CONFIG_MODEでは時計は表示しない。
+}
+
+
+void lcdPrintZero(byte num) {
+  if (num < 10) {
+    lcd.print(F("0"));
+  }
+  lcd.print(num);
+}
+
+
 void logIcon(bool showIcon) {
   if (showIcon) {
     lcd.setIcon(0x06, 0b10000); // show recording icon

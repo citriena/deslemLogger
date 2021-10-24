@@ -41,8 +41,8 @@
 // ただし，ここで設定できるほど正確に抵抗値を測定するのは容易ではない｡
 /////////////////////////////////////////////////////////////////
 //#define SET_ID "Logger08"      // ロガーID（英数13文字以内）。設定するとき以外はコメントアウトする。
-//#define THERMISTOR_DVR1  10003 // サーミスタ分圧抵抗1の正確な抵抗値
-//#define THERMISTOR_DVR2  10003 // サーミスタ分圧抵抗2の正確な抵抗値
+//#define THERMISTOR_DVR1  10003 // サーミスタ分圧抵抗1の正確な抵抗値。この値がArduinoのEEPROMに記録され、優先的に使われる。
+//#define THERMISTOR_DVR2  10003 // サーミスタ分圧抵抗2の正確な抵抗値。この値がArduinoのEEPROMに記録され、優先的に使われる。
 
 /////////////////////////////////////////////////////////////////
 //                       使用するセンサ等の設定
@@ -59,8 +59,8 @@
 // BoschのBME280を使う場合
 // 2個同時に設定，使用可能
 /////////////////////////////////
-#define BME280_x76  // BoschのBME280をI2Cアドレスx76で使う場合
-//#define BME280_x77  // BoschのBME280をI2Cアドレスx77で使う場合
+#define BME280_x76  // BoschのBME280をI2Cアドレス0x76で使う場合
+//#define BME280_x77  // BoschのBME280をI2Cアドレス0x77で使う場合
 
 /////////////////////////////////
 // SHT-31/35を使う場合 秋月電子通商のライブラリ使用。定義名がAE_SHT31だとクラス名と同じためコンパイルエラーとなる。
@@ -91,7 +91,7 @@
 // SHT-21を使う場合。
 // 定義名がSHT21だとクラス名と同じのためコンパイルエラーとなる。
 /////////////////////////////////
-// #define SHT2X_R
+//#define SHT2X_R
 
 /////////////////////////////////
 // HTU21を使う場合。実はSHT-21と同じライブラリが使えるようだ。
@@ -99,6 +99,19 @@
 //#define HTU21
 
 /////////////////////////////////
+// MHZ19を使う場合
+/////////////////////////////////
+//#define SENSOR_MHZ19
+
+/////////////////////////////////
+
+/////////////////////////////////
+// Sensirion SCD40 CO2センサーを使う場合
+/////////////////////////////////
+//#define SENSOR_SCD40
+
+/////////////////////////////////
+
 
 /////////////////////////////////////////////////////////////////
 #ifdef SENSOR_NTC  // サーミスタを使う場合の共通定義
@@ -128,25 +141,33 @@
 #endif
 
 #if defined(SHT8X_A)
-#define SENSOR_SHT  // Sensirion SHT-21, SHT-31, SHT-85 やHTU21を使う場合の共通定義
+#define SENSOR_SHT  // Sensirion SHT-85 を使う場合の共通定義
 #define SHT3X_A1
 #define SENSOR_NAME "SHT-85"  // この定義がmicroSDに書き出されるログファイルの最初に記録される．
 #endif
 
 #if defined(SHT8X_S)
-#define SENSOR_SHT  // Sensirion SHT-21, SHT-31, SHT-85 やHTU21を使う場合の共通定義
+#define SENSOR_SHT  // Sensirion SHT-85 を使う場合の共通定義
 #define SHT3X_S1
 #define SENSOR_NAME "SHT-85"  // この定義がmicroSDに書き出されるログファイルの最初に記録される．
 #endif
 
 #if defined(SHT2X_R)
-#define SENSOR_SHT  // Sensirion SHT-21, SHT-31, SHT-85 やHTU21を使う場合の共通定義
+#define SENSOR_SHT  // Sensirion SHT-21/25を使う場合の共通定義
 #define SENSOR_NAME "SHT-21"  // この定義がmicroSDに書き出されるログファイルの最初に記録される．
 #endif
 
 #if defined(HTU21)
-#define SENSOR_SHT  // Sensirion SHT-21, SHT-31, SHT-85 やHTU21を使う場合の共通定義
+#define SENSOR_SHT  // HTU21を使う場合の共通定義
 #define SENSOR_NAME "HTU-21"  // この定義がmicroSDに書き出されるログファイルの最初に記録される．
+#endif
+
+#ifdef SENSOR_MHZ19  // CO2センサMHZ19を使う場合の共通定義
+#define SENSOR_NAME "MHZ19"  // この定義がmicroSDに書き出されるログファイルの最初に記録される．
+#endif
+
+#ifdef SENSOR_SCD40  // Sensirion SCD40 CO2センサを使う場合の共通定義
+#define SENSOR_NAME "SCD40"  // この定義がmicroSDに書き出されるログファイルの最初に記録される．
 #endif
 
 
@@ -167,10 +188,12 @@
 
 /////////////////////////////////////////////////////////////////
 #ifdef SEKISAN
-#define MENU_NO          5 // LCDでメニューを表示する場合のgDispModeの番号。0は基本画面表示
-#else                      // 積算の場合は0-4が積算の切替で5が処理メニュー
-#define MENU_NO          1 // 積算以外では基本画面(0)と処理メニュー画面(1)の２つ
-#endif                     // 必要があれば、複数の別画面表示とすることも可能
+#define MENU_NO          6 // LCDで最後の画面のgDispModeの番号。通常は最後の画面は処理メニュー。0は基本画面表示
+#define CONFIG_NO        5 // ロガー設定内容を表示する場合のgDispModeの番号。基本的にMENU＿NOの前
+#else                      // 積算の場合は0-4が積算の切替で5が設定確認、6が処理メニュー
+#define MENU_NO          2 // LCDで最後の画面のgDispModeの番号。積算以外では基本画面(0)と設定確認画面(1)、処理メニュー画面(2)の3つ
+#define CONFIG_NO        1 // ロガー設定内容を表示する場合のgDispModeの番号。基本的にMENU＿NOの前
+#endif                     // センサ情報が多くて1画面では足りない場合は、複数の別画面表示とすることも可能
                            // その場合はMENU_NOを2以降にずらし、
                            // 空いたgDispModeに対応する表示をlcdTime(), lcdData()等で定義する。
 
@@ -185,8 +208,8 @@
 // 当然だが、TIMER_INTERVAL <= MEASURE_INTERVAL <= LOG_INTERVAL　の必要あり
 // TIMER_INTERVALの設定が有効なのはINTERVAL_UNIT が SEC_INTERVALの時だけで、それ以外の時は設定にかかわらず1となる。
 //
-#define LOG_MODE ENDLESS_MODE            // 記録モード（ENDLESS_MODEかWRITE_ONCE_MODE）
-//#define WRITE_ONCE_MODE                  // 記録モード（ENDLESS_MODEかWRITE_ONCE_MODE）
+//#define LOG_MODE ENDLESS_MODE            // 記録モード（ENDLESS_MODEかWRITE_ONCE_MODE）
+#define LOG_MODE WRITE_ONCE_MODE        // 記録モード（ENDLESS_MODEかWRITE_ONCE_MODE）
 #define TIMER_INTERVAL    1              // タイマー割り込み間隔。有効なのはgIntervalUnit = SEC_INTERVALの時だけで、それ以外の時は1分
 #define MEASURE_INTERVAL  1              // 測定間隔; 単位はINTERVAL_UNITで設定
 #define LOG_INTERVAL     10              // 記録間隔; 前回記録以降の測定データの平均値を記録する。単位はINTERVAL_UNITで設定
@@ -233,30 +256,31 @@
 // そんなに大きくすることはないだろうが。
 
 ///////////////////////////////////////
-#ifdef SENSOR_NTC                    // サーミスタを使う場合
+#ifdef SENSOR_NTC                     // サーミスタ, MHZ19を使う場合
 ///////////////////////////////////////
 #ifdef DUAL_SENSORS                  // サーミスタ2本の場合
-#define EM_DATA_PER_BUFF          6  // emData_t が4バイトなので、gEmDataBuffは4 x 6 + 1 = 25バイト
-#define EM_BUFF_WRITE_PER_HEADER 24  // ロギング間隔が10分では 10 x 6 x 24 = 1440分 = 1日
-#else                                // サーミスタ1本の場合
-#define EM_DATA_PER_BUFF         12  // emData_t が2バイトなので、gEmDataBuffは2 x 12 + 1 = 25バイト
-#define EM_BUFF_WRITE_PER_HEADER 12  // ロギング間隔が10分では 10 x 12 x 12 = 1440分 = 1日
-#endif // DUAL_SENSORS
+#define EM_DATA_PER_BUFF          7  // emData_t が4バイトなので、gEmDataBuffは4 x 7 + 1 = 29バイト
+#define EM_BUFF_WRITE_PER_HEADER 20  // ロギング間隔が10分では 10 x 7 x 20 = 1400分 = 1日弱
+#else                                // サーミスタ1本, MHZ19の場合
+#define EM_DATA_PER_BUFF         14  // emData_t が2バイトなので、gEmDataBuffは2 x 14 + 1 = 29バイト
+#define EM_BUFF_WRITE_PER_HEADER 10  // ロギング間隔が10分では 10 x 14 x 10 = 1400分 = 1日弱
+#endif // DUAL_SENSORS               // 140データで (8 + 2 * 14 * 10) 
 #endif // SENSOR_NTC
+
 ///////////////////////////////////////
 #ifdef SENSOR_BME280                 // BME280を使う場合
 ///////////////////////////////////////
-#ifdef LQ_DATA                      // センサデータを制限してEEPROMを節約する場合
+#ifdef LQ_DATA                       // センサデータを制限してEEPROMを節約する場合
 #ifdef DUAL_SENSORS                  // BME280を2個同時に使う場合
 #define EM_DATA_PER_BUFF          4  // emData_t が6バイトなので、gEmDataBuffは6 x 4 + 1 = 25バイト
-#define EM_BUFF_WRITE_PER_HEADER 36  // ロギング間隔が10分では 10 x 2 x 72 = 1440分 = 1日
+#define EM_BUFF_WRITE_PER_HEADER 36  // ロギング間隔が10分では 10 x 4 x 36 = 1440分 = 1日
 #else                                // BME280を1個だけ使う場合
 #define EM_DATA_PER_BUFF          9  // emData_t が3バイトなので、gEmDataBuffは3 x 9 + 1 = 28バイト
-#define EM_BUFF_WRITE_PER_HEADER 16  // ロギング間隔が10分では 10 x 5 x 28 = 1400分 = 1日弱
+#define EM_BUFF_WRITE_PER_HEADER 16  // ロギング間隔が10分では 10 x 9 x 16 = 1440分 = 1日
 #endif // DUAL_SENSORS
 #endif // LQ_DATA
 
-#ifdef SQ_DATA                      // センサデータを実用範囲でEEPROMに記録する場合
+#ifdef SQ_DATA                       // センサデータを実用範囲でEEPROMに記録する場合
 #ifdef DUAL_SENSORS                  // BME280を2個同時に使う場合
 #define EM_DATA_PER_BUFF          3  // emData_t が8バイトなので、gEmDataBuffは8 x 3 + 1 = 25バイト
 #define EM_BUFF_WRITE_PER_HEADER 48  // ロギング間隔が10分では 10 x 3 x 48 = 1440分 = 1日
@@ -266,7 +290,7 @@
 #endif // DUAL_SENSORS
 #endif // SQ_DATA
 
-#ifdef HQ_DATA                      // センサデータを事実上制限無しに保存する場合
+#ifdef HQ_DATA                       // センサデータを事実上制限無しに保存する場合
 #ifdef DUAL_SENSORS                  // BME280を2個同時に使う場合
 #define EM_DATA_PER_BUFF          2  // emData_t が10バイトなので、gEmDataBuffは10 x 2 + 1 = 21バイト
 #define EM_BUFF_WRITE_PER_HEADER 72  // ロギング間隔が10分では 10 x 2 x 72 = 1440分 = 1日
@@ -276,16 +300,17 @@
 #endif // DUAL_SENSORS
 #endif // HQ_DATA
 #endif // SENSOR_BME280
+
 ///////////////////////////////////////
-#ifdef SENSOR_SHT
+#ifdef SENSOR_SHT                    // Sensirion SHT-21/25, SHT-31/35等を使う場合
 ///////////////////////////////////////
-#ifdef LQ_DATA                      // センサデータの範囲，桁数を制限して保存し，EEPROM使用量を節約する場合
+#ifdef LQ_DATA                       // センサデータの範囲，桁数を制限して保存し，EEPROM使用量を節約する場合
 #ifdef DUAL_SENSORS                  // SHT2x/3xを2個同時に使う場合
-#define EM_DATA_PER_BUFF          6  // emData_t が4バイトなので、gEmDataBuffは4 x 6 + 1 = 25バイト
+#define EM_DATA_PER_BUFF          7  // emData_t が4バイトなので、gEmDataBuffは4 x 7 + 1 = 29バイト
 #define EM_BUFF_WRITE_PER_HEADER 24  // ロギング間隔が10分では 10 x 6 x 24 = 1440分 = 1日
 #else                                // SHT2x/3xを1個だけ使う場合
-#define EM_DATA_PER_BUFF         12  // emData_t が2バイトなので、gEmDataBuffは2 x 12 + 1 = 25バイト
-#define EM_BUFF_WRITE_PER_HEADER 12  // ロギング間隔が10分では 10 x 12 x 12 = 1440分 = 1日
+#define EM_DATA_PER_BUFF         14  // emData_t が2バイトなので、gEmDataBuffは2 x 14 + 1 = 29バイト
+#define EM_BUFF_WRITE_PER_HEADER 10  // ロギング間隔が10分では 10 x 14 x 10 = 1400分 = 1日弱
 #endif // DUAL_SENSORS
 #endif // LQ_DATA
 
@@ -299,6 +324,22 @@
 #endif // DUAL_SENSORS
 #endif // HQ_DATA
 #endif // SENSOR_SHT
+
+///////////////////////////////////////
+#ifdef SENSOR_MHZ19                   // CO2センサMHZ19を使う場合
+///////////////////////////////////////
+#define EM_DATA_PER_BUFF         14  // emData_t が2バイトなので、gEmDataBuffは2 x 14 + 1 = 29バイト
+#define EM_BUFF_WRITE_PER_HEADER 10  // ロギング間隔が10分では 10 x 14 x 10 = 1400分 = 1日弱
+#endif // SENSOR_MHZ19
+
+///////////////////////////////////////
+#ifdef SENSOR_SCD40                  // CO2センサ Sensirion SCD40を使う場合
+///////////////////////////////////////
+//#ifdef SQ_DATA                     // センサデータを実用範囲で保存する場合
+#define EM_DATA_PER_BUFF          7  // emData_t が4バイトなので、gEmDataBuffは4 x 7 + 1 = 29バイト
+#define EM_BUFF_WRITE_PER_HEADER 20  // ロギング間隔が10分では 10 x 7 x 20 = 1400分 = 1日弱
+//#endif // SQ_DATA
+#endif // SENSOR_SCD40
 
 
 /////////////////////////////////////////////////////////////////

@@ -12,7 +12,7 @@
 #include <SHTSensor.h>    // https://github.com/Sensirion/arduino-sht
 #endif
 
-#ifdef SHT2X_R
+#ifdef SHT2X_R            // オリジナルは接続エラーになると停止するので修正版を使っている。
 #include <SHT21.h>        // https://github.com/e-radionicacom/SHT21-Arduino-Library
 #endif
 

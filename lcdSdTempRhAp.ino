@@ -14,13 +14,6 @@
 //////////////////////////////////////////////////////
 
 void lcdTime(tmElements_t tm, lcdTimeMode_t mode, char cursorColumn) {
-  if ((gDispMode == MENU_NO) && (mode == DATA_TIME_MODE)) { // 設定画面＆非時計設定モード時
-    return;
-  } else if (mode == MENU_TIME_MODE) {
-    lcd.setCursor(0, 1); // メニュー導入画面では時計は2行目
-  } else {
-    lcd.setCursor(0, 0); // 時刻設定画面では時計は1行目
-  }
   if (mode != DATA_TIME_MODE){  // メニュー導入画面，時計設定モード時は年も表示
     lcd.print(tmYearToCalendar(tm.Year));
     lcd.print(F("/"));
@@ -50,21 +43,11 @@ void lcdTime(tmElements_t tm, lcdTimeMode_t mode, char cursorColumn) {
   }
 }
 
-
-void lcdTime(tmElements_t tm, lcdTimeMode_t mode) { // LCD first line
-  lcdTime(tm, mode, -1);
-}
-
-
-void lcdTime(tmElements_t tm) { // LCD first line
-  lcdTime(tm, DATA_TIME_MODE, -1);
-}
-
 //////////////////////////////////////////////////////
 //          display data to lcd                     //
 //////////////////////////////////////////////////////
 void lcdData(data_t tData) {
-  if (gDispMode == MENU_NO) return; // RTC割り込みでデータ処理後に通常はデータを表示するが、メニュー時は表示しない。
+  if (gDispMode >= CONFIG_NO) return; // RTC割り込みでデータ処理後に通常はデータを表示するが、設定表示、メニュー時は表示しない。
 #ifndef DUAL_SENSORS
   lcd.setCursor(6, 0);
   if (tData.dt1a == NULLDATA_MARK) {

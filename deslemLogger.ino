@@ -6,16 +6,16 @@
 //
 // センサーの種類、ロガーの動作等の設定変更は deslemLoggerConfig.h 内で行う。
 // センサ毎に異なる処理はライブラリや別ファイルとして分離
-// 他のスケッチでもそのまま利用できる日付処理やLCDアイコン処理も同様に分離
+// 他のスケッチでもそのまま利用できる日付処理やLCDアイコン処理も一部分離
 ////////////////////////////////////////////////////////////////
 
-#define SdFatLite               // 標準のSDライブラリでは無く、メモリ使用量が少ないSdFatLiteライブラリを使う。
+#define SdFatLite               // 標準のSDライブラリでは無く、メモリ使用量が少ないSdFatライブラリを使う。
 #include <Arduino.h>
 #include <Wire.h>
 #include <SPI.h>
 #ifdef SdFatLite                // 設定によっては標準のSDライブラリではスケッチが容量オーバーとなる。
-#include <SdFat.h>              // https://github.com/greiman/SdFat/releases/tag/1.1.4
-#else                           // SdFatLite (1.1.4)ではスケッチ容量が大幅に小さくなる(13%以上)
+#include <SdFat.h>              // https://github.com/greiman/SdFat
+#else                           // SdFatではスケッチ容量が大幅に小さくなる(13%以上)
 #include <SD.h>
 #endif
 #include <EEPROM.h>
@@ -43,6 +43,13 @@
 #include "sensorBME280.h"  // 他のセンサライブラリは同じフォルダに置かない（コンパイルエラーとなる）。
 #endif                     // 入れ替えたらArduino IDE再起動必要
 
+#ifdef SENSOR_MHZ19
+#include "sensorMHZ19.h"   // 他のセンサライブラリは同じフォルダに置かない（コンパイルエラーとなる）。
+#endif                     // 入れ替えたらArduino IDE再起動必要
+
+#ifdef SENSOR_SCD40
+#include "sensorSCD40.h"   // 他のセンサライブラリは同じフォルダに置かない（コンパイルエラーとなる）。
+#endif                     // 入れ替えたらArduino IDE再起動必要
 
 /////////////////////////////////////////////////////////////////
 //  外部EEPROM用ライブラリコンストラクタ設定（24xx1025の数等により変更）
@@ -51,11 +58,12 @@
 // set external EEPROM
 // set I2C addresses of external 24x1025 EEPROM connected; see EEPROM_24xx1025.h
 // EEPROMの数、I2Cアドレスに従って設定する。
+EEPROM_24xx1025 exEeprom(EPR_ADDR3); // 24xx1025 1個
 //EEPROM_24xx1025 exEeprom(EPR_ADDR0); // 24xx1025 1個
 //EEPROM_24xx1025 exEeprom(EPR_ADDR0, EPR_ADDR1); // 24xx1025 2個
 //EEPROM_24xx1025 exEeprom(EPR_ADDR2, EPR_ADDR3); // 24xx1025 2個 実装のアドレスに従う。
 //EEPROM_24xx1025 exEeprom(EPR_ADDR0, EPR_ADDR1, EPR_ADDR2); // 24xx1025 3個
-EEPROM_24xx1025 exEeprom(EPR_ADDR0, EPR_ADDR1, EPR_ADDR2, EPR_ADDR3); // 24xx1025 4個
+//EEPROM_24xx1025 exEeprom(EPR_ADDR0, EPR_ADDR1, EPR_ADDR2, EPR_ADDR3); // 24xx1025 4個
 
 /////////////////////////////////////////////////////////////////
 //                  その他ライブラリコンストラクタ
@@ -78,7 +86,7 @@ SdFat SD;
 typedef struct {
   byte startMark;
   byte Year;
-  byte Month;
+  byte Month;       // 最上位ビットはファイルを変えるフラグ
   byte Day;
   byte Hour;
   byte Minute;
@@ -90,13 +98,13 @@ typedef struct {
 typedef struct {
   byte startMark;
   byte Year;
-  byte Month;
+  byte Month;       // 最上位ビットはファイルを変えるフラグ
   byte Day;
   byte Hour;
   byte Minute;
   byte Second;
   byte LogInterval; // 上位2ビット：単位, 下位6ビット：記録間隔
-  byte endMark;     // 0xFF
+  byte endMark;     // EM_FORMAT_MARK(0xFF)
 } emLogHeaderWriter_t;  //ログデータヘッダ型（EEPROM書込用に最後にendMark追加）
 ///////////////////////////////////////////
 
@@ -105,7 +113,7 @@ typedef struct {
 // 外付EEPROMデータ書込み用バッファ
 typedef struct {
   emData_t data[EM_DATA_PER_BUFF];
-  byte endMark;  // 0xFF
+  byte endMark;  // EM_FORMAT_MARK(0xFF)
 } emDataBuff_t;  // EEPROMに書き込むデータバッファ型
 
 emDataBuff_t gEmDataBuff;
@@ -143,13 +151,20 @@ typedef enum { // データ記録モード
   WRITE_ONCE_MODE
 } logMode_t;
 
+typedef enum {
+  LOGGING,
+  STOPPED,
+  MEMORY_END
+} loggingStatus_t;
+
+
 /////////////////////////////////////////////////////////////////
 // 広域変数宣言  ユーザー設定（ロギング条件設定）。具体的数値はdeslemLoggerConfig.h内のマクロ定義で設定
 // いずれメニューで設定できるようにしたい（このため広域変数）。
 // LCDの時刻更新はタイマー起動時なので、LCDに時刻を表示する場合はタイマー割り込み間隔を1分間隔以下としないと時刻表示更新が遅れる。
 /////////////////////////////////////////////////////////////////
-logMode_t gLogMode = LOG_MODE;                 // endless mode か write once modeか；　LOG_MODはdeslemLoggerConfig.hで定義
-boolean gIsLogging = true;                     // ロギング実施フラグ cycleJob()実行時にこのフラグに従って処理をする（現在は使っていない。将来実装予定）。
+logMode_t gLogMode = LOG_MODE;                 // endless mode か write once modeか；　LOG_MODEはdeslemLoggerConfig.hで定義
+loggingStatus_t gLoggingStatus = LOGGING;      // ロギング状態フラグ cycleJob()実行時にこのフラグに従って処理をする。
 byte gTimerInterval =   TIMER_INTERVAL;        // タイマー割り込み間隔。有効なのはgIntervalUnit = SEC_INTERVALの時だけで、それ以外の時は1分
 byte gMeasureInterval = MEASURE_INTERVAL;      // 測定間隔
 byte gLogInterval =     LOG_INTERVAL;          // 記録間隔。前回記録以降の測定データの平均値を記録する
@@ -206,7 +221,7 @@ void setup() {
   if (!searchEmDataEnd()) {          // ログデータ記憶領域設定のため、最初のデータ未使用域を探す。
     lcd.setCursor(0, 1);             // ライトワンスで最後まで書き込んで、次に起動したらこれが実行されるか。
     lcd.print(F("DATA FULL;PRESS")); 
-    gIsLogging = false;              // 見つからなかったらとりあえずログを停止する。
+    gLoggingStatus = MEMORY_END;     // 見つからなかったらとりあえずログを停止する。
      while (digitalRead(MANUAL_INT_PIN) == HIGH); // キーが押されるまで待つ。
   }
   lcd.clear();
@@ -256,6 +271,9 @@ void manualJob() { // ボタンを押したら時の処理
         lcd.clear();
         gDispMode = 0; // 処理メニューの次は表示を最初に戻す（メニューが最後）。
         break;
+      case CONFIG_NO:  // ロギング設定導入画面
+        configMenu();  //ここでロギング条件設定できるようにする。
+        break;
       default:
 #ifdef SEKISAN
         sekisanStart(RTC.read(), gDispMode);  // 積算の場合は、ボタン長押しで積算開始、停止の切替
@@ -266,7 +284,7 @@ void manualJob() { // ボタンを押したら時の処理
     lcdTime(RTC.read());
     lcdData(getData());
     return;  // 設定に入ったらgDispModeは元のまま
-  }
+  } // keyLongPressed
   gDispMode++;
   if (gDispMode > MENU_NO) {
     gDispMode = 0;
@@ -275,15 +293,89 @@ void manualJob() { // ボタンを押したら時の処理
   if (gDispMode == MENU_NO) {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print(F("SHORI  DATA:"));
+    lcd.print(F("SHORI"));
+    lcdTime(RTC.read());
+  } else if (gDispMode == CONFIG_NO) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+//    lcd.print(F("T"));
+//    lcdPrintZero(gTimerInterval);
+//    lcd.print(F(",M"));
+    lcd.print(F("M"));
+    lcdPrintZero(gMeasureInterval);
+    lcd.print(F(",L"));
+    lcdPrintZero(gLogInterval);
+    switch (gIntervalUnit) {
+    case SEC_INTERVAL:
+      lcd.print(F(",sec "));
+      break;
+    case MIN_INTERVAL:
+      lcd.print(F("min "));
+      break;
+    case HOUR_INTERVAL:
+      lcd.print(F("hr "));
+      break;
+    }
     lcd.print((gWriteEmAddress * 100)/exEeprom.maxLongAddress());
     lcd.print(F("%"));
-    lcdTime(RTC.read(), MENU_TIME_MODE);
+    lcd.setCursor(0, 1);
+    switch(gLoggingStatus) {
+    case LOGGING:
+      lcd.print(F("RUN "));
+      break;
+    case STOPPED:
+      lcd.print(F("STOP"));
+      break;
+    case MEMORY_END:
+      lcd.print(F("FULL"));
+    }
+    lcd.setCursor(5,1);
+    if (gLogMode == ENDLESS_MODE) {
+      lcd.print(F("ENDLESS   "));
+    } else {
+      lcd.print(F("WRITE ONCE"));
+    }
   } else {
     lcdTime(RTC.read());
     lcdData(getData());
   }
   while (digitalRead(MANUAL_INT_PIN) == LOW); // キーが離されるまで待つ。
+}
+
+// 0123456789ABCDEF
+// M01,L10,min 99%
+// RUN  WRITE ONCE
+
+// M01,L10min BACK
+// STOP ENDLESS
+// 
+// 0123456789ABCDEF
+// SHORI
+// 2021/10/21 10:25
+
+
+// ロギング条件の設定
+// まず最初に設定変更する項目を決める。最初はgMeasureIntervalなのでそこでカーソルブリンク
+// 無操作5秒で次の項目へ順に異動（gMeasureInterval, gLoggingInterval, gInercalUnit, gLogMode, BACK）
+// BACKは長押しで設定確定して一つ上に戻る。
+// 設定変更したら一旦ロギング停止
+// gLogModeは LOGGING, STOPPED, MEMORY_ENDの3つ
+
+void configMenu() {
+  byte configSetting = 0;
+
+  switch(configSetting) {
+  case 0: // gMeasureInterval
+    break;
+  case 1: // gLogInterval
+    break;
+  case 2: // gIntervalUnit
+    break;
+  case 3: // gLogMode
+    break;
+  case 4: // gLoggingStatus
+    break;
+  }
 }
 
 
@@ -334,15 +426,6 @@ void shoriMenu() {
             lcd.print(F("DATA RESET      "));
           }
           break;
-        /*
-                case 3:
-                  if (selected) {
-                    setLogging();
-                  } else {
-                    lcd.print(F("LOGGING SETTINGS"));
-                  }
-                  break;
-        */
         case 3: // 戻る
           if (!selected) {
             lcd.print(F("BACK         "));
@@ -366,16 +449,8 @@ void shoriMenu() {
     }
     delay(10);
     count++;
-  } while (count < 500); // delay(10)なので、約5秒押さなかったら設定完了
+  } while (count < 1000); // delay(10)なので、約10秒押さなかったら設定完了
 }
-
-/*
-  void setLogging() {
-  lcd.clear();
-
-  }
-
-*/
 
 
 bool keyLongPressed() {
@@ -472,28 +547,35 @@ void cycleJob(tmElements_t tm) {
   data_t aData;  // 計測データの平均値（前回ログ以降）
   static tmElements_t headerTm;  // ヘッダの時刻
   int timeDiff;                  // ヘッダからの経過時間
-  byte buffPoint;                // バッファ内の書き込み位置
-  byte buffCount;                // ヘッダ以降バッファ書き込み番号
-  static byte prevBuffCount = 0;       // 前回のバッファ書き込み番号。異なっていればバッファをEEPROMに書き込み後バッファリセット
+  int buffPoint;                 // バッファ内の書き込み位置
+  int buffCount;                 // ヘッダ以降バッファ書き込み番号
+  static int prevBuffCount = 0;        // 前回のバッファ書き込み番号。異なっていればバッファをEEPROMに書き込み後バッファリセット
   static boolean buffEmpty = true;     // 不要か
   static boolean isLogging = false;    // ロギング処理実施中
   static boolean updateHeader = true;  // 最初はヘッダが必要
   static boolean updateBuffer = false;
-  bool isNewLog;                       // 新しいログファイルにするかどうか。この情報をヘッダに書き込んでおき、読み出すときにこれに従って処理。
+  bool isNewLog;                       // 新しいログファイルにするかどうか。この情報をヘッダに書き込んでおき、読み出すときにこれに従って処理
 
+  lowVdetect();
   tData = getData();                   // センサ等からデータ取得
   lcdData(tData);
 
   // ロギングを停止できるようにする時用のコード
   //いずれメニューで、ロギング開始、停止、ロギング間隔を設定できるようにしたい。
 
-  if (!gIsLogging) {
+  if (gLoggingStatus != LOGGING) {
     if (isLogging) {
       if (buffEmpty == false) {  // もしバッファにデータが残っていたら。最後のバッファ位置がメニュー処理等で書き込めなかった場合に対応
         buff2em(INC_ADDRESS);    // バッファをEEPROMに書き込み
         buffEmpty = true;        // バッファ空
       }
       isLogging = false;
+    }
+    lcd.setCursor(6,0);
+    if (gLoggingStatus == MEMORY_END) {
+      lcd.print(F("DATA FULL "));
+    } else {
+      lcd.print(F("NO LOGGING"));
     }
     return;
   } else {
@@ -571,12 +653,12 @@ boolean isCycleTime(tmElements_t tm, byte interval) {
       cTime = tm.Second;
       break;
     }
-    case MIN_INTERVAL: {
-      cTime = tm.Minute;
+    case MIN_INTERVAL: {  // TIMER_INTERVAL は1分なので
+      cTime = tm.Minute;  // 秒は考慮不要
       break;
     }
-    case HOUR_INTERVAL: {
-      if (tm.Minute != 0) return false;  // 0分以外は
+    case HOUR_INTERVAL: {                // TIMER_INTERVAL は1分なので
+      if (tm.Minute != 0) return false;  // 正時（0分）以外はfalse判定
       cTime = tm.Hour;
       break;
     }
@@ -598,10 +680,12 @@ boolean isCycleTime(tmElements_t tm, byte interval) {
 //                   データバッファをEEPROMに書き込み
 //////////////////////////////////////////////////////////////////////////////
 void buff2em(addressChange_t addressChange) {
+  long nWriteEmAddress;  // 今回書き込んだ場合の次の書込みアドレス
+
   if (gLogMode == WRITE_ONCE_MODE) {          // ライトワンスモードでは
-    long nWriteEmAddress = exEeprom.incLongAddress(gWriteEmAddress, sizeof(gEmDataBuff));
+    nWriteEmAddress = exEeprom.incLongAddress(gWriteEmAddress, sizeof(gEmDataBuff));
     if (nWriteEmAddress < gWriteEmAddress) {  // 次の書込みアドレスが小さくなる場合は
-      gIsLogging = false;                     // 今回の書込みが以前のログを上書きするのでロギング停止
+      gLoggingStatus = MEMORY_END;            // 今回の書込みが以前のログを上書きするのでロギング停止
       return;
     }
   }
@@ -659,8 +743,8 @@ void setHeader(tmElements_t tm, bool isNewLog) {
 boolean searchEmDataEnd() {
   gWriteEmAddress = findEmChar(0, EM_FORMAT_MARK);
   if (gWriteEmAddress == -1) {
-    gWriteEmAddress = 0;  // 見つからない場合はアドレス0から書き込む。
-    return false;
+    gWriteEmAddress = 0;  // 見つからない場合はアドレス0とする．
+    return false;         // ただし，falseを返して処理は呼び出し元に委ねる．
   }
   return true;
 }
@@ -691,9 +775,9 @@ void log2SD() {
 //////////////////////////////////////////////////////////////////////////////
 boolean em2SD() {
   tmElements_t tm;
-  //  tmElements_t headerTm;
+  tmElements_t previousTm = {0,0,0,0,1,1,0};
   long readEmAddress = 0;
-  //  long prevReadEmAddress = 0;
+//  long prevReadEmAddress = 0;
   emLogHeader_t emLogHeader;
   emDataBuff_t emDataBuff;
   byte tLogInterval;
@@ -703,10 +787,17 @@ boolean em2SD() {
   byte i, j;
 
   if (!initSD()) return false;
-  readEmAddress = findEmChar(readEmAddress, EM_HEADER_MARK);  // 上書きされていないヘッダを探す。２周目も問題ない。ただしファイル番号は逆転することもある。
-  while (readEmAddress >= 0) { // ヘッダが見つかっていれば
+  if (exEeprom.read(0) != EM_HEADER_MARK) {   // メモリの最初がヘッダでなければ2周目以降
+    readEmAddress = findEmChar(readEmAddress, EM_FORMAT_MARK);  // 書込み最後にはEM_FORMAT_MARKがあるので、最後の書き込みを探す。
+    if (readEmAddress < 0) readEmAddress = 0; // 通常はこれはない。
+  }
+  do {
+    readEmAddress = findEmChar(readEmAddress, EM_HEADER_MARK);  // 上書きされていないヘッダを探す。
+    if (readEmAddress < 0) break;                    // ヘッダが見つからなければ終了
     exEeprom.readBlock(readEmAddress, emLogHeader);  // ヘッダを読み込む
     tm = {emLogHeader.Second, emLogHeader.Minute, emLogHeader.Hour, 0, emLogHeader.Day, (byte)(emLogHeader.Month & 0b01111111), emLogHeader.Year};
+    if (daysDiff(previousTm, tm) < 0) break;  // 日付が逆転していたらメモリー一周の境界なので読み出し終了。時計の設定ミスで逆転したら読み出せなくなるが。
+    previousTm = tm;
     tLogInterval = emLogHeader.LogInterval & 0b00111111;
     tLogIntervalUnit = (intervalUnit_t)(emLogHeader.LogInterval >> 6);
     readEmAddress = exEeprom.incLongAddress(readEmAddress, sizeof(emLogHeader));
@@ -719,16 +810,16 @@ boolean em2SD() {
       exEeprom.readBlock(readEmAddress, emDataBuff);
       for (i = 0; i < EM_DATA_PER_BUFF; i++) {
         if ((emDataBuff.data[i].data1a == EM_FORMAT_MARK) || (emDataBuff.data[i].data1a == EM_HEADER_MARK)) { // データ終了、またはヘッダだったら
-          // ヘッダ更新後最初のバッファを書き込む前に電池が切れたりリセットするとヘッダだけのデータが発生する。ヘッダの後にEM_FORMAT_MARKを書き込むようにしたので、後半は不要のはず。
+          // ヘッダ更新後最初のバッファを書き込む前に電池が切れたりリセットしたりするとヘッダだけのデータが発生する。ヘッダの後にEM_FORMAT_MARKを書き込むようにしたので、後半は不要のはず。
           logfile.close();
           needNewFile = true;
           j = EM_BUFF_WRITE_PER_HEADER;  // データ読み込みループを抜けて次のヘッダを探す。
           break;
         }
-        //        if (needNewFile) { // ヘッダだけのデータファイルを作成しないようにここが良いか。ただわかりにくい。めったにないのでこの案は採用しない。
-        //          initFile(tm);    // ファイル作成日時をヘッダ時刻にするため、tm設定後に処理する
-        //          needNewFile = false;
-        //        }
+//        if (needNewFile) { // ヘッダだけのデータファイルを作成しないようにここが良いか。ただわかりにくい。めったにないのでこの案は採用しない。
+//          initFile(tm);    // ファイル作成日時をヘッダ時刻にするため、tm設定後に処理する
+//          needNewFile = false;
+//        }
         writeLog2SD(tm, restoreEmData(emDataBuff.data[i]), tLogIntervalUnit);
         readEmAddress = exEeprom.incLongAddress(readEmAddress, sizeof(emDataBuff.data[0])); // readEmAddressを進める。
         dataCount++;
@@ -744,13 +835,8 @@ boolean em2SD() {
     lcd.setCursor(0, 1);    // 毎回だと表示に時間がかかるので、ループの外に置いて表示回数を減らす
     lcd.print(F("DATA:"));
     lcd.print(dataCount);
-    readEmAddress = findEmChar(readEmAddress, EM_HEADER_MARK);  // ヘッダを探す
-    //    if (readEmAddress <= prevReadEmAddress) { // exEeprom.incLongAddress()では一周回ると元に戻るのでこの処理が必要
-    //      readEmAddress = -1;
-    //    } else {
-    //      prevReadEmAddress = readEmAddress;
-    //    }
-  }
+  } while (1);
+  logfile.close();
   return true;
 }
 
@@ -983,7 +1069,7 @@ void enterSleep(void) {
   // 待ち時間
   // すぐにsleepするとSerialの表示が間に合わないことがある。
   // need delay to finish Serial print
-  delay(100);
+//  delay(100);
 
   // set power-down mode
   SMCR |= (1 << SM1);
