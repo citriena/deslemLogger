@@ -1,31 +1,43 @@
 #include <Arduino.h>
 #include "timeLibSub.h"
 
-
-int daysDiff(tmElements_t sTm, tmElements_t eTm) {
+//////////////////////////////////////////////////////////////////////////////
+// 以下はヘッダからの経過時間算出用なので、余り長い間隔には対応していない。必要ならlongにする。
+//////////////////////////////////////////////////////////////////////////////
+int daysDiff(tmElements_t sTm, tmElements_t eTm) { // 正確な日数は年の差1までしか対応していない。それ以上だと閏年で誤差が出る。最大89年
   return (dayOfYear(eTm.Year, eTm.Month, eTm.Day) - dayOfYear(sTm.Year, sTm.Month, sTm.Day)) + ((int)eTm.Year - (int)sTm.Year) * daysInYear(sTm.Year);
 }
 
 
-int hourDiff(tmElements_t sTm, tmElements_t eTm) {
-  return (daysDiff(sTm, eTm) * 24 + (int)eTm.Hour - (int)sTm.Hour);
+long hourDiff(tmElements_t sTm, tmElements_t eTm) { // EEPROMを一周したときに日時の逆転を正しく判定できるようにlongとした。intだと一周で1365日を超えると誤動作する。
+  return (long)(daysDiff(sTm, eTm) * 24 - (long)sTm.Hour) + (long)eTm.Hour;
 }
 
 
-int minDiff(tmElements_t sTm, tmElements_t eTm) {
-  return (hourDiff(sTm, eTm) * 60 + (int)eTm.Minute - (int)sTm.Minute);
+int minDiff(tmElements_t sTm, tmElements_t eTm) {  //　最大22日なので、ヘッダの書込み間隔がこれを超えないようにする。
+  return (hourDiff(sTm, eTm) * 60 - (int)sTm.Minute) + (int)eTm.Minute;
 }
 
 
-int secDiff(tmElements_t sTm, tmElements_t eTm) {
-  return (minDiff(sTm, eTm) * 60 + (int)eTm.Second - (int)sTm.Second);
+int secDiff(tmElements_t sTm, tmElements_t eTm) { // 最大9時間なので、ヘッダの書込み間隔がこれを超えないようにする。
+  return (minDiff(sTm, eTm) * 60 - (int)sTm.Second) + (int)eTm.Second;
 }
 
+/*
+long minDiff(tmElements_t sTm, tmElements_t eTm) {  //　longにすれば事実上制限はなくなる。
+  return (long)(hourDiff(sTm, eTm) * 60 - (long)sTm.Minute) + (long)eTm.Minute;
+}
+
+long secDiff(tmElements_t sTm, tmElements_t eTm) {
+  return (minDiff(sTm, eTm) * 60 - (long)sTm.Second) + (long)eTm.Second;
+}
+*/
 
 int daysInYear(int year) {
   if (year % 4) return 366;
   return 365;
 }
+
 
 boolean timeMinuteEqual(tmElements_t tm, tmElements_t tmLast) {
   return tm.Year  == tmLast.Year  &&

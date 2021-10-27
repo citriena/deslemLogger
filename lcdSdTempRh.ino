@@ -33,7 +33,7 @@ void lcdTime(tmElements_t tm, lcdTimeMode_t mode, char cursorColumn) {
   lcd.print(F(":"));
   if (tm.Minute < 10) lcd.print(F("0"));
   lcd.print(tm.Minute, DEC);
-  lcd.print(F("  "));
+  lcd.print(F(" "));
   if (cursorColumn >= 0) {
     lcd.setCursor(cursorColumn, 0);
     lcd.blink();
