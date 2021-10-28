@@ -2,7 +2,7 @@
 // 電池長期間駆動Arduinoロガーに使っているスケッチ
 // deslemLogger (deep sleep EEPROM logger)
 // https://github.com/citriena/deslemLogger
-// V1.2.1
+// V1.2.2
 // Copyright (C) 2021 by citriena
 //
 // センサーの種類、ロガーの動作等の設定変更は deslemLoggerConfig.h 内で行う。
@@ -773,19 +773,30 @@ boolean em2SD() {
   intervalUnit_t tLogIntervalUnit;
   boolean needNewFile = true;
   unsigned long dataCount = 0;  // SDにデータ書出時の処理データ数
+  bool memRound = false;        // メモリ一周してたまたまヘッダがメモリの最初から始まった場合の対応。１周目の読み飛ばしを避けるために使用
+  bool addressZeroRead = false; // メモリ一周してたまたまヘッダがメモリの最初から始まった場合の対応。２周目の二度読みを避ける為に使用
   byte i, j;
 
   if (!initSD()) return false;
   if (exEeprom.read(0) != EM_HEADER_MARK) {   // メモリの最初がヘッダでなければ2周目以降
     readEmAddress = findEmChar(readEmAddress, EM_FORMAT_MARK);  // 書込み最後にはEM_FORMAT_MARKがあるので、最後の書き込みを探す。
     if (readEmAddress < 0) readEmAddress = 0; // 通常はこれはない。
+    memRound = true;                          // 次にヘッダの日付が逆転したら読み込み終了
   }
   do {
     readEmAddress = findEmChar(readEmAddress, EM_HEADER_MARK);  // 上書きされていないヘッダを探す。
-    if (readEmAddress < 0) break;                    // ヘッダが見つからなければ終了
+    if (readEmAddress < 0) break;                               // ヘッダが見つからなければ終了
+    if (readEmAddress == 0) {     // ヘッダがEEPROMの最初にあるのは　1．ロギング開始時のヘッダ、2．ENDLESSでたまたま2周目がヘッダで始まった時　の2種類
+      if (addressZeroRead) break; // 既にアドレス0を読んでいれば（すなわち2周目）終了、
+      addressZeroRead = true;     // まだアドレス0読んでなければ（すなわち1周目）読込済を示すフラグを立てて以降の読込処理を続ける。
+    }
     exEeprom.readBlock(readEmAddress, emLogHeader);  // ヘッダを読み込む
     tm = {emLogHeader.Second, emLogHeader.Minute, emLogHeader.Hour, 0, emLogHeader.Day, (byte)(emLogHeader.Month & 0b01111111), emLogHeader.Year};
-    if (hourDiff(previousTm, tm) < 0) break;  // 時間が逆転していたらメモリー一周の境界なので読み出し終了。時計の設定ミスで逆転したら読み出せなくなるが。
+    if (hourDiff(previousTm, tm) < 0) { // ヘッダの時刻が逆転していたら
+      if(memRound) break; // 2周目であれば1周のとの境界なので読み出し終了。時計の設定ミスで逆転したら読み出せなくなるが
+      memRound = true;    // これは2周目がたまたまヘッダで始まっている場合の2周目の最後に実行される。日付逆転しているが以降はまだ読み出していない1周目なので読み出す。
+      needNewFile = true; // ファイルは新しくする。
+    }
     previousTm = tm;
     tLogInterval = emLogHeader.LogInterval & 0b00111111;
     tLogIntervalUnit = (intervalUnit_t)(emLogHeader.LogInterval >> 6);

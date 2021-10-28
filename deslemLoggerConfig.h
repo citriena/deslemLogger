@@ -208,11 +208,11 @@
 // 当然だが、TIMER_INTERVAL <= MEASURE_INTERVAL <= LOG_INTERVAL　の必要あり
 // TIMER_INTERVALの設定が有効なのはINTERVAL_UNIT が SEC_INTERVALの時だけで、それ以外の時は設定にかかわらず1となる。
 //
-//#define LOG_MODE ENDLESS_MODE            // 記録モード（ENDLESS_MODEかWRITE_ONCE_MODE）
-#define LOG_MODE WRITE_ONCE_MODE        // 記録モード（ENDLESS_MODEかWRITE_ONCE_MODE）
+#define LOG_MODE ENDLESS_MODE            // 記録モード（ENDLESS_MODEかWRITE_ONCE_MODE）
+//#define LOG_MODE WRITE_ONCE_MODE        // 記録モード（ENDLESS_MODEかWRITE_ONCE_MODE）
 #define TIMER_INTERVAL    1              // タイマー割り込み間隔。有効なのはgIntervalUnit = SEC_INTERVALの時だけで、それ以外の時は1分
 #define MEASURE_INTERVAL  1              // 測定間隔; 単位はINTERVAL_UNITで設定
-#define LOG_INTERVAL     10              // 記録間隔; 前回記録以降の測定データの平均値を記録する。単位はINTERVAL_UNITで設定
+#define LOG_INTERVAL      10             // 記録間隔; 前回記録以降の測定データの平均値を記録する。単位はINTERVAL_UNITで設定
 //#define INTERVAL_UNIT    SEC_INTERVAL  // 上記の間隔の単位（秒）
 #define INTERVAL_UNIT    MIN_INTERVAL    // 上記の間隔の単位（分）
 //#define INTERVAL_UNIT    HOUR_INTERVAL // 上記の間隔の単位（時）
