@@ -9,7 +9,7 @@ void lcdTime(tmElements_t tm) { // LCD first line
   if (gDispMode < CONFIG_NO) {
     lcd.setCursor(0, 0); // データ画面では時計は1行目
     lcdTime(tm, DATA_TIME_MODE, -1);
-  } else if (gDispMode == MENU_NO) {
+  } else if ((gDispMode == MENU_NO) && (gDispTime)){
     lcd.setCursor(0, 1); // メニュー導入画面では時計は2行目
     lcdTime(tm, MENU_TIME_MODE, -1);
   } // CONFIG_MODEでは時計は表示しない。

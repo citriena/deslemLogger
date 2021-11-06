@@ -2,7 +2,7 @@
 // 電池長期間駆動Arduinoロガーに使っているスケッチ
 // deslemLogger (deep sleep EEPROM logger)
 // https://github.com/citriena/deslemLogger
-// V1.2.2
+// V1.3.0
 // Copyright (C) 2021 by citriena
 //
 // センサーの種類、ロガーの動作等の設定変更は deslemLoggerConfig.h 内で行う。
@@ -12,9 +12,9 @@
 
 #define SdFatLite               // 標準のSDライブラリでは無く、メモリ使用量が少ないSdFatライブラリを使う。
 #include <Arduino.h>
-#ifdef SdFatLite                // 設定によっては標準のSDライブラリではスケッチが容量オーバーとなる。
+#ifdef SdFatLite                // 設定によっては標準のSDライブラリではスケッチが容量オーバーとなる。SdFatではスケッチ容量が大幅に小さくなる(設定によっては13%以上)。
 #include <SdFat.h>              // https://github.com/greiman/SdFat
-#else                           // SdFatではスケッチ容量が大幅に小さくなる(13%以上)
+#else                           // Flushメモリ節約のため、SdFatConfig.h内の[#define USE_LONG_FILE_NAMES 0]と[#define SDFAT_FILE_TYPE 1]は有効にしている。
 #include <SD.h>
 #endif
 #include <EEPROM.h>
@@ -160,8 +160,8 @@ typedef enum {
 /////////////////////////////////////////////////////////////////
 // 広域変数宣言  ユーザー設定（ロギング条件設定）。具体的数値はdeslemLoggerConfig.h内のマクロ定義で設定
 // いずれメニューで設定できるようにしたい（このため広域変数）。
-// LCDの時刻更新はタイマー起動時なので、LCDに時刻を表示する場合はタイマー割り込み間隔を1分間隔以下としないと時刻表示更新が遅れる。
 /////////////////////////////////////////////////////////////////
+//Global variables
 logMode_t gLogMode = LOG_MODE;                 // endless mode か write once modeか；　LOG_MODEはdeslemLoggerConfig.hで定義
 loggingStatus_t gLoggingStatus = LOGGING;      // ロギング状態フラグ cycleJob()実行時にこのフラグに従って処理をする。
 byte gTimerInterval =   TIMER_INTERVAL;        // タイマー割り込み間隔。有効なのはgIntervalUnit = SEC_INTERVALの時だけで、それ以外の時は1分
@@ -169,11 +169,10 @@ byte gMeasureInterval = MEASURE_INTERVAL;      // 測定間隔
 byte gLogInterval =     LOG_INTERVAL;          // 記録間隔。前回記録以降の測定データの平均値を記録する
 intervalUnit_t gIntervalUnit = INTERVAL_UNIT;  // 上記の間隔の単位（時、分、秒）
 
-
-//Global variables
 tmElements_t gFileTm;      // ファイル日時を設定するマクロで用い、ファイル日時を記録開始日時とするために使用する。
-long gWriteEmAddress = 0;  // 外部EEPROMのログ書込アドレス
+long gWriteEmAddress = 0;  // 外部EEPROMのログ書込アドレス。最初は0から開始
 byte gDispMode = 0;        // ボタンを押したときに変える画面の種類。0は基本モード、#define で設定するMENU_NOはメニューの番号（gDispModeの最大値）
+boolean gDispTime = true;  // メニュー表示では時計を表示するが、メニュー項目処理中には時計を表示しないようにするため。スマートなやり方ではない。要検討
 boolean gLCDon = true;     // LCD表示しているかどうか。
 
 volatile boolean rtcint = false;   // 割り込み処理中のフラグ（RTCタイマー） 割り込みサービスルーチンで設定するので volatile必要
@@ -218,10 +217,10 @@ void setup() {
   lcd.print(F("SEARCH DATA AREA"));
   if (!searchEmDataEnd() || ((exEeprom.maxLongAddress() - gWriteEmAddress) < 0x800)) {  // ログデータ記憶領域設定のため、最初のデータ未使用域を探す。
     if (gLogMode == WRITE_ONCE_MODE) {                                         //ライトワンスでデータフルかほぼフルの場合はロギングしない。 
-      lcd.setCursor(0, 1);             // ライトワンスで最後まで書き込んで、次に起動したらこれが実行されるか。
-      lcd.print(F("DATA FULL;PRESS")); 
+//      lcd.setCursor(0, 1);             // ライトワンスで最後まで書き込んで、次に起動したらこれが実行されるか。
+//      lcd.print(F("DATA FULL;PRESS")); 
       gLoggingStatus = MEMORY_END;     // 見つからなかったらとりあえずログを停止する。
-      while (digitalRead(MANUAL_INT_PIN) == HIGH); // キーが押されるまで待つ。
+//      waitKeyPressed(); // キーが押されるまで待つ。
     }
   }
   lcd.clear();
@@ -240,15 +239,19 @@ void loop() {
       manualJob();
       lvlint = false;
     }
-    if (rtcint) { // interrupt call by timer
-      timerJob();
-      rtcint = false;
-    }
+    rtcIntCheck();
     enterSleep();  //go to power save mode
   //  ADCSRA |= (1 << ADEN);  // ADC ON
   } while(1); // この方がわずかにプログラムが小さくなる。
 }
 
+
+void rtcIntCheck() {
+  if (rtcint) { // interrupt call by timer
+    timerJob();
+    rtcint = false;
+  }
+}
 
 /////////////////////////////////////////////////////////////////
 // 　　　　　　　　　　　　ボタン操作処理関係
@@ -258,23 +261,26 @@ void manualJob() { // ボタンを押した時の処理
   if (!gLCDon) { // LCDが消えている場合はとりあえずLCDをONにする処理のみ
     lcd.display();   // re-desplay during LCD off time
     gLCDon = true;
+    waitKeyNotPressed(); // キーが離されるまで待つ。
     return;
   }
   lcd.noBlink();   // 積算中等をブリンクで表示しているので、一旦ブリンクを停止する。
   if (keyLongPressed()) {
     switch (gDispMode) {
-    case MENU_NO:    // 処理メニュー導入画面
-      shoriMenu();
-      lcd.clear();
-      gDispMode = 0; // 処理メニューの次は表示を最初に戻す（メニューが最後）。
-      break;
     case CONFIG_NO:  // ロギング設定導入画面
       configMenu();  //ここでロギング条件設定できるようにする。
+      break;
+    case MENU_NO:    // 処理メニュー導入画面
+      gDispTime = false; // 実際の処理中は時計表示しない。
+      shoriMenu();
+      gDispTime = true;
+      lcd.clear();
+      gDispMode = 0; // 処理メニューの次は表示を最初に戻す（メニューが最後）。
       break;
     default:
 #ifdef SEKISAN
       sekisanStart(RTC.read(), gDispMode);  // 積算の場合は、ボタン長押しで積算開始、停止の切替
-      while (digitalRead(MANUAL_INT_PIN)  == LOW); // キーが離されるまで待つ。
+      waitKeyNotPressed(); // キーが離されるまで待つ。
 #endif
       break;
     }
@@ -301,7 +307,7 @@ void manualJob() { // ボタンを押した時の処理
     lcdTime(RTC.read());
     lcdData(getData());
   }
-  while (digitalRead(MANUAL_INT_PIN) == LOW); // キーが離されるまで待つ。
+  waitKeyNotPressed(); // キーが離されるまで待つ。
 }
 
 // 0123456789ABCDEF
@@ -309,7 +315,6 @@ void manualJob() { // ボタンを押した時の処理
 // RUN  WRITE ONCE
 
 // M01,L10min BACK
-// STOP ENDLESS
 // 
 // 0123456789ABCDEF
 // SHORI
@@ -368,20 +373,50 @@ void showConfig() {  // ロギング設定の表示
 
 void configMenu() {  // ロギング条件の設定実装用
   byte configSetting = 0;
+  bool selected = false;
   return;
+
+  lcd.clear();
   do {
     switch(configSetting) {
     case 0: // gMeasureInterval
+      lcd.setCursor(0,0);
+      lcd.print(F("M"));
+       if (selected) {
+        
+      }
       break;
     case 1: // gLogInterval 
+      lcd.setCursor(0,0);
+      lcd.print(F(""));
+      if (selected) {
+        
+      }
       break;
     case 2: // gIntervalUnit  SEC_INTERVAL/MIN_INTERVAL/HOUR_INTERVAL の選択
+      if (selected) {
+        
+      }
       break;
     case 3: // gLogMode WRITE_ONCE_MODE/ENDLESS_MODEの選択
+      if (selected) {
+        
+      }
       break;
     case 4: // gLoggingStatus LOGGING/STOPPED/MEMORY_END だが選べるのはLOGGING（ログ開始）とSTOPPED（停止）。MEMORY_ENDだったら変更不可
+      if (selected) {
+        
+      }
       break;
     }
+    waitKeyNotPressed(); // キーが押されるまで待つ。
+    if (keyLongPressed()) { // キーが長押しされたら
+      selected = true;
+    } else {
+      configSetting++;
+      if (configSetting > 4) configSetting = 0;
+    }
+  rtcIntCheck(); // これを実行することで、メニュー処理中でも定期計測処理が実行される。
   } while(1);
 }
 
@@ -396,54 +431,54 @@ void shoriMenu() {
       keyPressed = false;
       lcd.setCursor(0, 1);
       switch (setteiNo) {
-        case 0: // 日時設定
-          if (selected) {
-            setTimeButton();
-          } else {
-            lcd.print(F("DATE&TIME"));
-          }
-          break;
-        case 1: // データ回収
-          if (selected) {
-            log2SD();
-          } else {
-            lcd.print(F("DATA COPY"));
-          }
-          break;
-        case 2: // リセット
-          if (selected) {
-            lcd.setCursor(0, 1);
-            lcd.print(F("Press to RESET"));
-            while (digitalRead(MANUAL_INT_PIN) == LOW); // キーが離されるまで待つ。
-            delay(50);
-            int ct = 0;
-            selected = false;
-            do {
-              if (digitalRead(MANUAL_INT_PIN) == LOW) {
-                resetAllData();
-//                delay(5000);  // 再起動するので実行されない。
-//                lcd.clear();
-//                ct = 500;
-//                selected = true;
-              }
-              delay(10);
-              ct++;
-            } while (ct < 500);   // ボタンが押されるか5秒待つ。delay(10)×500で5秒
-          } else {
-            lcd.print(F("DATA RESET"));
-          }
-          break;
-        case 3: // 戻る
-          if (!selected) {
-            lcd.print(F("BACK"));
-          }
-          break;
+      case 0: // 日時設定
+        if (selected) {
+          setTimeButton();
+        } else {
+          lcd.print(F("DATE&TIME"));
+        }
+        break;
+      case 1: // データ回収
+        if (selected) {
+          log2SD();
+        } else {
+          lcd.print(F("DATA COPY"));
+        }
+        break;
+      case 2: // リセット
+        if (selected) {
+          lcd.setCursor(0, 1);
+          lcd.print(F("Press to RESET"));
+          waitKeyNotPressed(); // キーが離されるまで待つ。
+          delay(50);
+          int ct = 0;
+          selected = false;
+          do {
+            if (digitalRead(MANUAL_INT_PIN) == LOW) { // キーが押されたら
+              resetAllData();
+//              delay(5000);  // 再起動するので実行されない。
+//              lcd.clear();
+//              ct = 500;
+//              selected = true;
+            }
+            delay(10);
+            ct++;
+          } while (ct < 500);   // ボタンが押されるか5秒待つ。delay(10)×500で5秒
+        } else {
+          lcd.print(F("DATA RESET"));
+        }
+        break;
+      case 3: // 戻る
+        if (!selected) {
+          lcd.print(F("BACK"));
+        }
+        break;
       } // switch (setteiNo)
       lcd.print(F("            "));
       if (selected) { // どれか処理が終了したら
         return;       // 処理メニューを終わる。
       }
-      while (digitalRead(MANUAL_INT_PIN) == LOW); // キーが離されるまで待つ。
+      waitKeyNotPressed(); // キーが離されるまで待つ。
     } // if (keyPressed())
     if (digitalRead(MANUAL_INT_PIN) == LOW) {
       keyPressed = true;
@@ -457,7 +492,21 @@ void shoriMenu() {
     }
     delay(10);
     count++;
+    rtcIntCheck(); // これを実行することで、メニュー処理中でも定期計測処理が実行される。
   } while (count < 1000); // delay(10)なので、約10秒押さなかったら設定完了
+}
+
+
+void waitKeyNotPressed() {
+  byte i = 0;
+  do {
+    if (digitalRead(MANUAL_INT_PIN) == HIGH) i++; // バウンシング（チャッタリング）対策で一定カウント待つ。
+  } while (i < 200);
+}
+
+
+void waitKeyPressed() {
+  while (digitalRead(MANUAL_INT_PIN) == HIGH);
 }
 
 
@@ -748,14 +797,11 @@ void log2SD() {
   lcd.setCursor(0, 0);
   lcd.print(F("Write data to SD"));
   buff2em(STAY_ADDRESS);// バッファデータをEEPROMに書き込む。バッファ満杯ではないのでEEPROM内のポインタは進めない。
-  lcd.setCursor(0, 0);
-  lcd.print(F("Write "));
-  if (em2SD()) {
-    lcd.print(F("finished  "));
-  } else {
-    lcd.print(F("failed  "));
+  if (!em2SD()) {
+    lcd.setCursor(0, 0);
+    lcd.print(F("No SD card"));
+    delay(2000);
   }
-  delay(2000);
   lcd.clear();
 }
 
@@ -773,8 +819,8 @@ boolean em2SD() {
   intervalUnit_t tLogIntervalUnit;
   boolean needNewFile = true;
   unsigned long dataCount = 0;  // SDにデータ書出時の処理データ数
-  bool memRound = false;        // メモリ一周してたまたまヘッダがメモリの最初から始まった場合の対応。１周目の読み飛ばしを避けるために使用
-  bool addressZeroRead = false; // メモリ一周してたまたまヘッダがメモリの最初から始まった場合の対応。２周目の二度読みを避ける為に使用
+  boolean memRound = false;        // メモリ一周してたまたまヘッダがメモリの最初から始まった場合の対応。１周目の読み飛ばしを避けるために使用
+  boolean addressZeroRead = false; // メモリ一周してたまたまヘッダがメモリの最初から始まった場合の対応。２周目の二度読みを避ける為に使用
   byte i, j;
 
   if (!initSD()) return false;
@@ -805,16 +851,16 @@ boolean em2SD() {
     if (needNewFile) {
       initFile(tm);    // ファイル作成、更新日時を最初のヘッダ時刻にするため、tm設定後に処理する
       needNewFile = false;
-    }
-    for (j = 0; j < EM_BUFF_WRITE_PER_HEADER; j++) {
-      exEeprom.readBlock(readEmAddress, emDataBuff);
+    }  // ここまでヘッダの処理
+    for (j = 0; j < EM_BUFF_WRITE_PER_HEADER; j++) {  // ここからデータ読み込み
+      exEeprom.readBlock(readEmAddress, emDataBuff);  // 書き込んだバッファと同じものをバッファに読み込む
       for (i = 0; i < EM_DATA_PER_BUFF; i++) {
         if ((emDataBuff.data[i].data1a == EM_FORMAT_MARK) || (emDataBuff.data[i].data1a == EM_HEADER_MARK)) { // データ終了、またはヘッダだったら
           // ヘッダ更新後最初のバッファを書き込む前に電池が切れたりリセットしたりするとヘッダだけのデータが発生する。ヘッダの後にEM_FORMAT_MARKを書き込むようにしたので、後半は不要のはず。
           logfile.close();
           needNewFile = true;
-          j = EM_BUFF_WRITE_PER_HEADER;  // データ読み込みループを抜けて次のヘッダを探す。
-          break;
+          j = EM_BUFF_WRITE_PER_HEADER;// 外側のループも抜ける。
+          break;             // データ読み込みループを抜けて次のヘッダを探す。
         }
 //        if (needNewFile) { // ヘッダだけのデータファイルを作成しないようにここが良いか。ただわかりにくい。めったにないのでこの案は採用しない。
 //          initFile(tm);    // ファイル作成日時をヘッダ時刻にするため、tm設定後に処理する
@@ -822,7 +868,7 @@ boolean em2SD() {
 //        }
         writeLog2SD(tm, restoreEmData(emDataBuff.data[i]), tLogIntervalUnit);
         readEmAddress = exEeprom.incLongAddress(readEmAddress, sizeof(emDataBuff.data[0])); // readEmAddressを進める。
-        dataCount++;
+        dataCount++;                // バッファの途中で次のヘッダとなる場合に対応するためにreadEmAddressは読んだ分だけ進める。ただし、実際には発生しないはず。
         if (tLogIntervalUnit == MIN_INTERVAL) {
           tm = incTimeMinutes(tm, tLogInterval);
         } else if (tLogIntervalUnit == SEC_INTERVAL) {
@@ -835,6 +881,7 @@ boolean em2SD() {
     lcd.setCursor(0, 1);    // 毎回だと表示に時間がかかるので、ループの外に置いて表示回数を減らす
     lcd.print(F("DATA:"));
     lcd.print(dataCount);
+    rtcIntCheck(); // これを実行することで、データ書き出し中でも定期計測処理が実行される。
   } while (1);
   logfile.close();
   return true;
@@ -855,10 +902,9 @@ long findEmChar(long addr, byte mark) {
     exEeprom.read(i, eGroupData, 32);
     for (j = 0; j < 32; j++) {
       if (eGroupData[j] == mark) {
-        if ((i + j) > maxAddress) {  // メモリの最大アドレスを超えると最初に戻って読み込むのでこの処理が必要
-          return -1;
-        }
-        return i + j;
+        i += j;
+        if (i > maxAddress) return -1; // メモリの最大アドレスを超えると最初に戻って読み込むのでこの処理が必要
+        return i;
       }
     }
   }
@@ -1030,6 +1076,7 @@ void setTimeButton() {
 
   //  lcd.clear();
   while (item < 5) { // YearからMinuteまで順番に設定
+    lcd.setCursor(0,0);
     lcdTime(tm, SET_TIME_MODE, cursorColumn[item]);
     delay(500); // wait time for next switch detect
     for (i = 0; i < 500; i++) {
@@ -1095,16 +1142,18 @@ void enterSleep(void) {
 float lowVdetect() {
 
   float vcc = cpuVcc();
+  byte iCode;
 
   if (vcc < 2.90) {
-    lcd.setIcon(0x0d, 0b00010); // show battery icon (empty)
+    iCode = 0b00010; // show battery icon (empty)
   } else if (vcc < 3.05) {
-    lcd.setIcon(0x0d, 0b00110); // show battery icon (low)
+    iCode = 0b00110; // show battery icon (low)
   } else if (vcc < 3.20) {
-    lcd.setIcon(0x0d, 0b01110); // show battery icon (middle)
+    iCode = 0b01110; // show battery icon (middle)
   } else {
-    lcd.setIcon(0x0d, 0b00000); // hide battery icon
+    iCode = 0b00000; // hide battery icon
   }
+  lcd.setIcon(0x0d, iCode);
   return vcc;
 }
 

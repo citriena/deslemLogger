@@ -212,8 +212,8 @@
 //#define LOG_MODE WRITE_ONCE_MODE        // 記録モード（ENDLESS_MODEかWRITE_ONCE_MODE）
 #define TIMER_INTERVAL    1              // タイマー割り込み間隔。有効なのはgIntervalUnit = SEC_INTERVALの時だけで、それ以外の時は1分
 #define MEASURE_INTERVAL  1              // 測定間隔; 単位はINTERVAL_UNITで設定
-#define LOG_INTERVAL      10             // 記録間隔; 前回記録以降の測定データの平均値を記録する。単位はINTERVAL_UNITで設定
-//#define INTERVAL_UNIT    SEC_INTERVAL  // 上記の間隔の単位（秒）
+#define LOG_INTERVAL     10              // 記録間隔; 前回記録以降の測定データの平均値を記録する。単位はINTERVAL_UNITで設定
+//#define INTERVAL_UNIT    SEC_INTERVAL    // 上記の間隔の単位（秒）
 #define INTERVAL_UNIT    MIN_INTERVAL    // 上記の間隔の単位（分）
 //#define INTERVAL_UNIT    HOUR_INTERVAL // 上記の間隔の単位（時）
 
@@ -223,7 +223,7 @@
 
 
 /////////////////////////////////////////////////////////////////
-//           EEPROM書込み設定（既存の設定は基本的には変更不要）
+//    EEPROM書込み設定（既存の設定は基本的には変更不要）
 //    新たなセンサライブラリを作った場合は設定の追加必要
 /////////////////////////////////////////////////////////////////
 // EM_DATA_PER_BUFF  //
@@ -256,12 +256,12 @@
 // そんなに大きくすることはないだろうが。
 
 ///////////////////////////////////////
-#ifdef SENSOR_NTC                     // サーミスタ, MHZ19を使う場合
+#ifdef SENSOR_NTC                     // サーミスタを使う場合
 ///////////////////////////////////////
 #ifdef DUAL_SENSORS                  // サーミスタ2本の場合
 #define EM_DATA_PER_BUFF          7  // emData_t が4バイトなので、gEmDataBuffは4 x 7 + 1 = 29バイト
 #define EM_BUFF_WRITE_PER_HEADER 20  // ロギング間隔が10分では 10 x 7 x 20 = 1400分 = 1日弱
-#else                                // サーミスタ1本, MHZ19の場合
+#else                                // サーミスタ1本の場合
 #define EM_DATA_PER_BUFF         14  // emData_t が2バイトなので、gEmDataBuffは2 x 14 + 1 = 29バイト
 #define EM_BUFF_WRITE_PER_HEADER 10  // ロギング間隔が10分では 10 x 14 x 10 = 1400分 = 1日弱
 #endif // DUAL_SENSORS               // 140データで (8 + 2 * 14 * 10) 
@@ -346,8 +346,8 @@
 //           ハードウェア等設定（ハードウェアに応じて設定）
 /////////////////////////////////////////////////////////////////
 // set hardware pin asignments
-#define ALARM_INT_PIN       2 // alarm interrupt input pin for periodical measurement
-#define MANUAL_INT_PIN      3 // manual interrupt input pin to call menu etc.
+#define ALARM_INT_PIN       2 // Alarm interrupt input pin for periodical measurement. Unchangable.
+#define MANUAL_INT_PIN      3 // Manual interrupt input pin to call menu etc. Unchangable.
 #define CHIP_SELECT        10 // SDカードアクセス用(SPI)
 // connect push button between GND and MANUAL_INT_PIN with pull-up resistor
 #define THERMISTOR_EXC      9 // サーミスタ加電圧ピン（省電力のため、測定時のみ加電圧）
@@ -360,7 +360,7 @@
 /////////////////////////////////////////////////////////////////
 //           8. 設定内容保存EEPROM（内部）アドレス設定
 /////////////////////////////////////////////////////////////////
-// set EEPROM address  AVR内蔵EEPROMのアドレス
+// set internal EEPROM address  AVR内蔵EEPROMのアドレス
 #define BACKUP_DATA_ADDRESS    0 // 積算温度、積算開始日等のバックアップデータ保存用
 #define LOGGER_ID_ADDRESS   0x80 // ロガーIDの保存用
 #define DV_R_ADDRESS        0x90 // サーミス分圧抵抗値の保存用
@@ -369,7 +369,7 @@
 /////////////////////////////////////////////////////////////////
 //                 起動時の時刻設定
 /////////////////////////////////////////////////////////////////
-//#define REBOOT_TIME_SET          // 起動時に時刻の設定を行なう
+//#define REBOOT_TIME_SET          // call set time rountine at startup
 
 
 /////////////////////////////////////////////////////////////////
