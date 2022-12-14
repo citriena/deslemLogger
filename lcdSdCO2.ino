@@ -55,8 +55,8 @@ void lcdData(data_t tData) {
     lcd.print(F(":ERR  "));
   } else {
     if (tData.dt1a < 1000) lcd.print(F(" "));
-    if (tData.dt1c < 100)  lcd.print(F(" "));
-    if (tData.dt1c < 10)   lcd.print(F(" "));
+    if (tData.dt1a < 100)  lcd.print(F(" "));
+    if (tData.dt1a < 10)   lcd.print(F(" "));
     lcd.print(tData.dt1a, 0);
     lcd.print(F("ppm "));
   }

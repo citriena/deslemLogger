@@ -5,7 +5,7 @@
 // 以下はヘッダからの経過時間算出用なので、余り長い間隔には対応していない。必要ならlongにする。
 //////////////////////////////////////////////////////////////////////////////
 int daysDiff(tmElements_t sTm, tmElements_t eTm) { // 正確な日数は年の差1までしか対応していない。それ以上だと閏年で誤差が出る。最大89年
-  return (dayOfYear(eTm.Year, eTm.Month, eTm.Day) - dayOfYear(sTm.Year, sTm.Month, sTm.Day)) + ((int)eTm.Year - (int)sTm.Year) * daysInYear(sTm.Year);
+  return (dayOfYear(eTm.Year, eTm.Month, eTm.Day) - dayOfYear(sTm.Year, sTm.Month, sTm.Day)) + ((int)eTm.Year - (int)sTm.Year) * daysInYear(tmYearToCalendar(sTm.Year));
 }
 
 

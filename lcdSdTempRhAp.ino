@@ -8,6 +8,7 @@
 
 #ifdef SENSOR_BME280
 #ifndef SEKISAN
+#ifndef MIN_MAX
 
 //////////////////////////////////////////////////////
 //          display time to lcd                     //
@@ -110,6 +111,7 @@ void lcdData(data_t tData) {
   // 25.0C 100% 1000h
 
 
+#endif // MIN_MAX
 #endif // SEKISAN
 
 ////////////////////////////////////////////////////

@@ -1,3 +1,5 @@
+#include "deslemLoggerConfig.h"
+#ifdef SENSOR_BME280
 ////////////////////////////////////////////////////////////////
 // delemLogger.ino 用のBosch BME280センサライブラリ
 // sensorBME280.h ver. 1.00 by citriena
@@ -125,3 +127,5 @@ emData_t setEmData(data_t tData);
 data_t restoreEmData(emData_t tEmData);
 
 #endif
+
+#endif //SENSOR_BME280

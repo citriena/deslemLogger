@@ -2,8 +2,8 @@
 // 電池長期間駆動Arduinoロガーに使っているスケッチ
 // deslemLogger (deep sleep EEPROM logger)
 // https://github.com/citriena/deslemLogger
-// V1.3.0
-// Copyright (C) 2021 by citriena
+// V1.4.0
+// Copyright (C) 2022 by citriena
 //
 // センサーの種類、ロガーの動作等の設定変更は deslemLoggerConfig.h 内で行う。
 // センサ毎に異なる処理はライブラリや別ファイルとして分離
@@ -14,7 +14,7 @@
 #include <Arduino.h>
 #ifdef SdFatLite                // 設定によっては標準のSDライブラリではスケッチが容量オーバーとなる。SdFatではスケッチ容量が大幅に小さくなる(設定によっては13%以上)。
 #include <SdFat.h>              // https://github.com/greiman/SdFat
-#else                           // Flushメモリ節約のため、SdFatConfig.h内の[#define USE_LONG_FILE_NAMES 0]と[#define SDFAT_FILE_TYPE 1]は有効にしている。
+#else                           // Flashメモリ節約のため、SdFatConfig.h内の[#define USE_LONG_FILE_NAMES 0]と[#define SDFAT_FILE_TYPE 1]は有効にしている。
 #include <SD.h>
 #endif
 #include <EEPROM.h>
@@ -31,24 +31,24 @@
 /////////////////////////////////////////////////////////////////
 
 #ifdef SENSOR_NTC
-#include "sensorNTC.h"  // 他のセンサライブラリは同じフォルダに置かない（コンパイルエラーとなる）。
-#endif                  // 入れ替えたらArduino IDE再起動必要
+#include "sensorNTC.h"
+#endif
 
 #ifdef SENSOR_SHT
-#include "sensorSHT.h"  // 他のセンサライブラリは同じフォルダに置かない（コンパイルエラーとなる）。
-#endif                  // 入れ替えたらArduino IDE再起動必要
+#include "sensorSHT.h"
+#endif
 
 #ifdef SENSOR_BME280
-#include "sensorBME280.h"  // 他のセンサライブラリは同じフォルダに置かない（コンパイルエラーとなる）。
-#endif                     // 入れ替えたらArduino IDE再起動必要
+#include "sensorBME280.h"
+#endif
 
 #ifdef SENSOR_MHZ19
-#include "sensorMHZ19.h"   // 他のセンサライブラリは同じフォルダに置かない（コンパイルエラーとなる）。
-#endif                     // 入れ替えたらArduino IDE再起動必要
+#include "sensorMHZ19.h"
+#endif
 
 #ifdef SENSOR_SCD40
-#include "sensorSCD40.h"   // 他のセンサライブラリは同じフォルダに置かない（コンパイルエラーとなる）。
-#endif                     // 入れ替えたらArduino IDE再起動必要
+#include "sensorSCD40.h"
+#endif
 
 /////////////////////////////////////////////////////////////////
 //  外部EEPROM用ライブラリコンストラクタ設定（24xx1025の数等により変更）
@@ -68,7 +68,7 @@ EEPROM_24xx1025 exEeprom(EPR_ADDR0, EPR_ADDR1, EPR_ADDR2, EPR_ADDR3); // 24xx102
 //                  その他ライブラリコンストラクタ
 /////////////////////////////////////////////////////////////////
 
-RX8900RTC RTC;
+RX8900RTC myRTC;
 
 ST7032 lcd;
 
@@ -205,12 +205,15 @@ void setup() {
   lcd.print(F("ID:"));
   lcd.print(loggerId);
 
-  RTC.init();
+  myRTC.init();
 #ifdef REBOOT_TIME_SET
   setTimeButton();
 #endif
 #ifdef SEKISAN
-  readBackupData(RTC.read());
+  readBackupData(myRTC.read());
+#endif
+#ifdef MIN_MAX
+  initMinMax();
 #endif
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -225,7 +228,7 @@ void setup() {
   }
   lcd.clear();
   initSensor();              // initialize sensor
-  lcdTime(RTC.read());       // display time on the LCD
+  lcdTime(myRTC.read());     // display time on the LCD
   lcdData(getData());        // display temperatures on the LCD
   setManualInt();            // set manual interrupt
   setAlarmInt();             // set periodical alarm interrupt
@@ -279,12 +282,12 @@ void manualJob() { // ボタンを押した時の処理
       break;
     default:
 #ifdef SEKISAN
-      sekisanStart(RTC.read(), gDispMode);  // 積算の場合は、ボタン長押しで積算開始、停止の切替
+      sekisanStart(myRTC.read(), gDispMode);  // 積算の場合は、ボタン長押しで積算開始、停止の切替
       waitKeyNotPressed(); // キーが離されるまで待つ。
 #endif
       break;
     }
-    lcdTime(RTC.read());
+    lcdTime(myRTC.read());
     lcdData(getData());
     return;  // 設定に入ったらgDispModeは元のまま
   } // keyLongPressed
@@ -298,13 +301,13 @@ void manualJob() { // ボタンを押した時の処理
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print(F("SHORI"));
-    lcdTime(RTC.read());
+    lcdTime(myRTC.read());
     break;
   case CONFIG_NO:  // 設定表示画面
     showConfig();
     break;
   default:  // 測定表示画面では表示更新
-    lcdTime(RTC.read());
+    lcdTime(myRTC.read());
     lcdData(getData());
   }
   waitKeyNotPressed(); // キーが離されるまで待つ。
@@ -528,7 +531,7 @@ bool keyLongPressed() {
 void timerJob() {
   tmElements_t tm;
 
-  tm = RTC.read();
+  tm = myRTC.read();
   lcdTime(tm);
   lcdControl(tm.Hour); // blink止まるのでcycleJob()の前に実行する必要あり
   if (isCycleTime(tm, gMeasureInterval)) {
@@ -544,12 +547,12 @@ void timerJob() {
 void setAlarmInt() {  //set alarm to fire every interval time
   attachInterrupt(digitalPinToInterrupt(ALARM_INT_PIN), alcall, FALLING);
   if (gIntervalUnit == SEC_INTERVAL) {
-    while (RTC.read().Second % gTimerInterval) {}; // 呼び出しタイミングまで待つ
-    RTC.setFixedCycleTimer(gTimerInterval, SECOND_UPDATE); // 定周期タイマー起動
-    RTC.fixedCycleTimerInterrupt(ENABLE);
+    while (myRTC.read().Second % gTimerInterval) {}; // 呼び出しタイミングまで待つ
+    myRTC.setFixedCycleTimer(gTimerInterval, SECOND_UPDATE); // 定周期タイマー起動
+    myRTC.fixedCycleTimerInterrupt(ENABLE);
   } else {
-    RTC.setTimeUpdateTimer(UPDATE_MINUTE_INT); // set update interrupt timing to every minute
-    RTC.timeUpdateTimerInterrupt(ENABLE);
+    myRTC.setTimeUpdateTimer(UPDATE_MINUTE_INT); // set update interrupt timing to every minute
+    myRTC.timeUpdateTimerInterrupt(ENABLE);
   }
 }
 
@@ -591,6 +594,9 @@ void cycleJob(tmElements_t tm) {
 
   lowVdetect();
   tData = getData();                   // センサ等からデータ取得
+#ifdef MIN_MAX
+    minMaxCheck(tData, tm);
+#endif
   lcdData(tData);
 
   // ロギングを停止できるようにする時用のコード
@@ -818,7 +824,7 @@ boolean em2SD() {
   byte tLogInterval;
   intervalUnit_t tLogIntervalUnit;
   boolean needNewFile = true;
-  unsigned long dataCount = 0;  // SDにデータ書出時の処理データ数
+  unsigned long dataCount = 0;     // SDにデータ書出時の処理データ数
   boolean memRound = false;        // メモリ一周してたまたまヘッダがメモリの最初から始まった場合の対応。１周目の読み飛ばしを避けるために使用
   boolean addressZeroRead = false; // メモリ一周してたまたまヘッダがメモリの最初から始まった場合の対応。２周目の二度読みを避ける為に使用
   byte i, j;
@@ -837,17 +843,17 @@ boolean em2SD() {
       addressZeroRead = true;     // まだアドレス0読んでなければ（すなわち1周目）読込済を示すフラグを立てて以降の読込処理を続ける。
     }
     exEeprom.readBlock(readEmAddress, emLogHeader);  // ヘッダを読み込む
-    tm = {emLogHeader.Second, emLogHeader.Minute, emLogHeader.Hour, 0, emLogHeader.Day, (byte)(emLogHeader.Month & 0b01111111), emLogHeader.Year};
+    tm = {emLogHeader.Second, emLogHeader.Minute, emLogHeader.Hour, 0, emLogHeader.Day, (byte)(emLogHeader.Month & 0b01111111), emLogHeader.Year};  // 月の最上位ビットは新ファイルフラグなのでクリア
     if (hourDiff(previousTm, tm) < 0) { // ヘッダの時刻が逆転していたら
       if(memRound) break; // 2周目であれば1周のとの境界なので読み出し終了。時計の設定ミスで逆転したら読み出せなくなるが
       memRound = true;    // これは2周目がたまたまヘッダで始まっている場合の2周目の最後に実行される。日付逆転しているが以降はまだ読み出していない1周目なので読み出す。
       needNewFile = true; // ファイルは新しくする。
     }
     previousTm = tm;
-    tLogInterval = emLogHeader.LogInterval & 0b00111111;
+    tLogInterval = emLogHeader.LogInterval & 0b00111111;   // 上位2ビットは単位用なのでクリアする。
     tLogIntervalUnit = (intervalUnit_t)(emLogHeader.LogInterval >> 6);
     readEmAddress = exEeprom.incLongAddress(readEmAddress, sizeof(emLogHeader));
-    needNewFile = needNewFile || ((emLogHeader.Month & 0b10000000) != 0) ;  // ヘッダに新ファイルフラグが立っていたら
+    needNewFile = needNewFile || ((emLogHeader.Month & 0b10000000) != 0) ;  // ヘッダに新ファイルフラグ（最上位1ビット）が立っていたら
     if (needNewFile) {
       initFile(tm);    // ファイル作成、更新日時を最初のヘッダ時刻にするため、tm設定後に処理する
       needNewFile = false;
@@ -1036,8 +1042,8 @@ boolean createFile(tmElements_t tm) {
 /////////////////////////////////////////////////////////////////
 void dateTime(uint16_t* date, uint16_t* time) {
 
-  //setSyncProvider(RTC.get); //sync time with RTC
-  //  tmElements_t tm = RTC.read();
+  //setSyncProvider(myRTC.get()); //sync time with RTC
+  //  tmElements_t tm = myRTC.read();
 
   // FAT_DATEマクロでフィールドを埋めて日付を返す
   // fill date to FAT_DATE macro
@@ -1062,7 +1068,7 @@ void setTimeButton() {
   byte item = 0; // year=0, month=1, day=2, hour=3, minute=4
   bool isChanged = false;    // キーを全く押さずにいたら最後の０秒設定は行なわない。
 
-  tmElements_t tm = RTC.read();
+  tmElements_t tm = myRTC.read();
   tValue[0] = tm.Year;
   tValue[1] = tm.Month;
   tValue[2] = tm.Day;
@@ -1097,7 +1103,7 @@ void setTimeButton() {
     lcd.setCursor(0, 1);
     lcd.print(F("Press to set"));
     while (digitalRead(MANUAL_INT_PIN)  == HIGH) {}; // ボタンが押されるのを待つ。
-    RTC.write(tm);                                   // ボタンが押されたら設定値をRTCに設定。ゼロ秒で押せば秒まで正確に設定できる。
+    myRTC.write(tm);                                 // ボタンが押されたら設定値をRTCに設定。ゼロ秒で押せば秒まで正確に設定できる。
   } // do not set RTC if date and time are not changed  変更がなければRTCの設定はしない。
   lcd.noBlink();
   while (digitalRead(MANUAL_INT_PIN)  == LOW) {};    // 次の処理に影響しないようにボタンが離されるのを待つ。

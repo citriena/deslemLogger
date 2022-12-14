@@ -1,3 +1,6 @@
+#include "deslemLoggerConfig.h"
+#ifdef SENSOR_BME280
+
 #include <Arduino.h>
 #include <Wire.h>
 #include <forcedClimate.h>   // https://github.com/JVKran/Forced-BME280
@@ -511,3 +514,5 @@ data_t restoreEmData(emData_t tEmData) { // EEPROM内の変換データを元に
   return tData;
 }
 #endif  // HQ_DATA
+
+#endif //SENSOR_BME280

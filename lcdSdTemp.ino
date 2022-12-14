@@ -8,6 +8,7 @@
 
 #ifdef SENSOR_NTC
 #ifndef SEKISAN
+#ifndef MIN_MAX
 
 //////////////////////////////////////////////////////
 //          display time to lcd                     //
@@ -16,7 +17,7 @@
 #define DECIMAL_PLACE 1
 
 void lcdTime(tmElements_t tm, lcdTimeMode_t mode, char cursorColumn) {
-  if (mode != DATA_TIME_MODE){  // メニュー導入画面，時計設定モード時は年も表示
+  if (mode != DATA_TIME_MODE) {  // メニュー導入画面，時計設定モード時は年も表示
     lcd.print(tmYearToCalendar(tm.Year));
     lcd.print(F("/"));
   }
@@ -74,6 +75,7 @@ void lcdData(data_t tData) {
   // 12:00 30.0C  80%
 
 
+#endif // MIN_MAX
 #endif // SEKISAN
 
 ////////////////////////////////////////////////////

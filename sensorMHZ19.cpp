@@ -1,3 +1,6 @@
+#include "deslemLoggerConfig.h"
+#ifdef SENSOR_MHZ19
+
 #include "sensorMHZ19.h"
 #include <MHZ19.h>   // https://github.com/crisap94/MHZ19
 
@@ -98,3 +101,5 @@ data_t restoreEmData(emData_t tEmData) { // EEPROM内の変換データを元に
   }
   return tData;
 }
+
+#endif // SENSOR_MHZ19

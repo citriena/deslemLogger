@@ -1,3 +1,6 @@
+#include "deslemLoggerConfig.h"
+#ifdef SENSOR_SCD40
+
 #include "sensorSCD40.h"
 #include <SensirionI2CScd4x.h>   // https://github.com/Sensirion/arduino-i2c-scd4x
 // SensirionI2CScd4x.h depends on SensirionCore.h at https://github.com/Sensirion/arduino-core
@@ -131,3 +134,5 @@ data_t restoreEmData(emData_t tEmData) { // EEPROM内の変換データを元に
   return tData;
 }
 //#endif // SQ_DATA
+
+#endif // SENSOR_SCD40

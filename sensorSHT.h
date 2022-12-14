@@ -1,3 +1,5 @@
+#include "deslemLoggerConfig.h"
+#ifdef SENSOR_SHT
 ////////////////////////////////////////////////////////////////
 // delemLogger.ino 用のSensirion SHT2x/3x センサライブラリ
 // sensorSHT.h ver.1.01 by citriena
@@ -10,7 +12,6 @@
 #ifndef _sensorSHT_h
 #define _sensorSHT_h
 #include <Arduino.h>
-#include "deslemLoggerConfig.h"
 
 ////////////////////////////////////////////////////////////////
 // 　型宣言 + 付属広域変数宣言　センサー依存部
@@ -89,3 +90,5 @@ emData_t setEmData(data_t tData);
 data_t restoreEmData(emData_t tEmData);
 
 #endif
+
+#endif // SENSOR_SHT

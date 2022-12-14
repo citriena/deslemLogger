@@ -8,6 +8,7 @@
 
 #ifdef SENSOR_SCD40
 #ifndef SEKISAN
+#ifndef MIN_MAX
 
 //////////////////////////////////////////////////////
 //          display time to lcd                     //
@@ -70,6 +71,8 @@ void lcdData(data_t tData) {
     lcd.print(F("ppm"));
   }
 }
+
+#endif // MIN_MAX
 #endif // SEKISAN
 
 ////////////////////////////////////////////////////

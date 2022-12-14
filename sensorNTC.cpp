@@ -1,3 +1,6 @@
+#include "deslemLoggerConfig.h"
+#ifdef SENSOR_NTC
+
 #include <EEPROM.h>
 #include "sensorNTC.h"
 #include <SHthermistor.h>   // https://github.com/citriena/SHthermistor
@@ -20,12 +23,13 @@ data_t _sumData = {0};     // 平均値計算用
 // T1, T2, T3：それぞれ等間隔で10℃以上離れている温度を選定する（必ずしも正確に等間隔ではなくても良い）。
 // 温度補正値（℃）。計算値にこの補正値を加算し、測定値とする。高精度の温度計との差から調整。簡易には氷を使った氷点で調整。
 // 以下の数値は秋月電子通商で扱っているSEMITEC株式会社103AT-11の場合
-
-SHthermistor thermistor1(0, 25, 50, 27280, 10000, 4160, THERMISTOR_DVR1, THERMISTOR_ADC1, NTC_GND, THERMISTOR_EXC, 0.0);
+SHthermistor thermistor1(-10, 25, 50, 42470, 10000, 4160, THERMISTOR_DVR1, THERMISTOR_ADC1, NTC_GND, THERMISTOR_EXC, 0.0);
+//SHthermistor thermistor1(0, 25, 50, 27280, 10000, 4160, THERMISTOR_DVR1, THERMISTOR_ADC1, NTC_GND, THERMISTOR_EXC, 0.0);
 //SHthermistor thermistor1(8.88073909E-04, 2.51425171E-04, 1.92279449E-07, THERMISTOR_VDR, THERMISTOR_ADC1, NTC_GND, 9, 0.0, DEFAULT_EXCITE_VALUE);
 
 #ifdef DUAL_SENSORS
-SHthermistor thermistor2(0, 25, 50, 27280, 10000, 4160, THERMISTOR_DVR2, THERMISTOR_ADC2, NTC_GND, THERMISTOR_EXC, 0.0);
+SHthermistor thermistor2(-10, 25, 50, 42470, 10000, 4160, THERMISTOR_DVR2, THERMISTOR_ADC2, NTC_GND, THERMISTOR_EXC, 0.0);
+//SHthermistor thermistor2(0, 25, 50, 27280, 10000, 4160, THERMISTOR_DVR2, THERMISTOR_ADC2, NTC_GND, THERMISTOR_EXC, 0.0);
 //SHthermistor thermistor2(8.88073909E-04, 2.51425171E-04, 1.92279449E-07, THERMISTOR_VDR, THERMISTOR_ADC2, NTC_GND, THERMISTOR_EXC, 0.0, DEFAULT_EXCITE_VALUE);
 #endif
 
@@ -56,7 +60,7 @@ data_t getData() {
   data_t tData;
 
   tData.dt1a = thermistor1.readTemp();
-  if (tData.dt1a != TH_ERR_DATA) { // エラーだったら平均処理に使わない
+  if ((tData.dt1a != TH_SHORT_ERR) && (tData.dt1a != TH_OPEN_ERR)) { // エラーだったら平均処理に使わない
     _sumData.dt1a += tData.dt1a;  // 平均用の処理も行う。
     _dataCount1a++;
   } else {
@@ -64,7 +68,7 @@ data_t getData() {
   }
 #ifdef DUAL_SENSORS
   tData.dt2a = thermistor2.readTemp();
-  if (tData.dt2a != TH_ERR_DATA) { // エラーだったら平均処理に使わない
+  if ((tData.dt2a != TH_SHORT_ERR) && (tData.dt2a != TH_OPEN_ERR)) { // エラーだったら平均処理に使わない
     _sumData.dt2a += tData.dt2a;  // 平均用の処理も行う。
     _dataCount2a++;
   } else {
@@ -156,3 +160,5 @@ void getDivR() {
 //    thermistor1.setDivR(dv_r);
   }
 }
+
+#endif // SENSOR_NTC

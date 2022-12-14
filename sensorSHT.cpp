@@ -1,3 +1,6 @@
+#include "deslemLoggerConfig.h"
+#ifdef SENSOR_SHT
+
 #include <Arduino.h>
 #include <Wire.h>
 #include "sensorSHT.h"
@@ -385,3 +388,5 @@ data_t restoreEmData(emData_t tEmData) { // EEPROM内の変換データを元に
   return tData;
 }
 #endif // HQ_DATA
+
+#endif // SENSOR_SHT

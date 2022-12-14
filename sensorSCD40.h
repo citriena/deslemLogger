@@ -1,28 +1,27 @@
+#include "deslemLoggerConfig.h"
+#ifdef SENSOR_SCD40
 //////////////////////////////////////////////////////
 // 電池長期間駆動Arduinoロガー
 // deslemLogger (deep sleep EEPROM logger)用補助スケッチ
-// サーミスタを使う場合のセンサー処理ライブラリ
+// CO2センサー Sensirion SCD40 を使う場合のセンサー処理ライブラリ
 //////////////////////////////////////////////////////
-#ifndef _sensorNTC_h
-#define _sensorNTC_h
+#ifndef _sensorSCD40_h
+#define _sensorSCD40_h
 #include <Arduino.h>
-#include "deslemLoggerConfig.h"
-
 
 ////////////////////////////////////////////////////////////////
 // 　型宣言 + 付属広域変数宣言　センサー依存部
 /////////////////////////////////////////////////////////////////
 #define NULLDATA_MARK           -9999  // センサーエラー時等に返す値　必要に応じて変える
-
+#define ERR_DATA                
 
 // センサから読み出すデータの型宣言
 // 必須ではないが処理の関係上変数名はなるべく変えない。１センサの出力が増える場合はdt1a, dt1bとアルファベットを進める。
 // センサの本数が増える場合は dt2a, dt3a, dt4a と続ける。
 typedef struct {
-  float dt1a;
-#ifdef DUAL_SENSORS
-  float dt2a;
-#endif
+  float dt1a; // temperature;
+  float dt1b; // humidity;
+  int32_t dt1c; // co2;  平均処理のためにlongとする。
 } data_t;
 
 
@@ -33,19 +32,12 @@ typedef struct {
 typedef struct {
   byte data1a;
   byte data1b;
-#ifdef DUAL_SENSORS
-  byte data2a;
-  byte data2b;
-#endif
+  byte data1c;
+  byte data1d;
 } emData_t;
 
-#ifndef DUAL_SENSORS
-const emData_t nullEmData = {EM_NULLDATA_MARK, EM_NULLDATA_MARK};  // EEPROMに書き込むバッファの初期化はEM_NULLDATA_MARK;これでデータ書込済かどうか識別する
-const data_t nullData = {NULLDATA_MARK};
-#else
 const emData_t nullEmData = {EM_NULLDATA_MARK, EM_NULLDATA_MARK, EM_NULLDATA_MARK, EM_NULLDATA_MARK};
-const data_t nullData = {NULLDATA_MARK, NULLDATA_MARK};
-#endif
+const data_t nullData = {NULLDATA_MARK, NULLDATA_MARK, NULLDATA_MARK};
 
 void initSensor();
 data_t getData();
@@ -55,3 +47,5 @@ data_t restoreEmData(emData_t tEmData);
 void getDivR();
 
 #endif
+
+#endif // SENSOR_SCD40
